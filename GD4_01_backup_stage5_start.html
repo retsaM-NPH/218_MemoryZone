@@ -1,0 +1,2333 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Memoryzone 218 — Stage 4 Fixed Final Edition</title>
+    
+    <!-- Google Fonts: Fredoka Pop Chibi & Montserrat -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Montserrat:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --neon-pink: #ff2d8d;
+            --neon-cyan: #00f2fe;
+            --neon-cyan-light: #d4fcff;
+            --neon-green: #00ff66;
+            --neon-violet: #a855f7;
+            --bg: #03040c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg);
+            font-family: 'Montserrat', sans-serif;
+            color: #fff;
+        }
+
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+        }
+
+        #header-ui {
+            position: absolute;
+            top: 20px;
+            left: 25px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .brand-title {
+            font-family: 'Fredoka', cursive;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #ffffff 0%, var(--neon-cyan) 50%, var(--neon-pink) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 25px rgba(0, 242, 254, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-sub {
+            font-size: 10px;
+            letter-spacing: 1.8px;
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* PIP HUD Ở GÓC DƯỚI BÊN PHẢI */
+        #ai-hud {
+            position: absolute;
+            bottom: 22px;
+            right: 22px;
+            z-index: 30;
+            background: rgba(6, 9, 22, 0.9);
+            border: 1.5px solid rgba(0, 255, 102, 0.5);
+            border-radius: 18px;
+            padding: 10px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.9), 0 0 22px rgba(0, 255, 102, 0.25);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .ai-header {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: var(--neon-green);
+            text-transform: uppercase;
+        }
+
+        .ai-dot {
+            width: 7px;
+            height: 7px;
+            background: var(--neon-green);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--neon-green);
+            animation: pulseDot 1.4s infinite ease-in-out;
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.3); opacity: 1; }
+        }
+
+        #cam-wrapper {
+            position: relative;
+            width: 140px;
+            height: 105px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #010206;
+            border: 1px solid rgba(0, 255, 102, 0.2);
+        }
+
+        #webcam {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            opacity: 0.25;
+        }
+
+        #hand-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+
+        .ai-status-pill {
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: #d1ffe2;
+            background: rgba(0, 255, 102, 0.12);
+            padding: 4px 8px;
+            border-radius: 20px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid rgba(0, 255, 102, 0.3);
+            white-space: nowrap;
+        }
+
+        .ai-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(0, 255, 102, 0.45);
+            color: #fff;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            text-transform: uppercase;
+        }
+
+        .ai-btn:hover {
+            background: rgba(0, 255, 102, 0.28);
+            border-color: var(--neon-green);
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.4);
+        }
+
+        /* FSM CONTROL BAR */
+        #fsm-ui {
+            position: absolute;
+            bottom: 24px;
+            left: 30px;
+            z-index: 10;
+            background: rgba(10, 14, 34, 0.88);
+            border: 1.5px solid rgba(0, 242, 254, 0.5);
+            border-radius: 40px;
+            padding: 8px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 12px 45px rgba(0, 0, 0, 0.95), 0 0 25px rgba(0, 242, 254, 0.3);
+        }
+
+        .fsm-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: rgba(255, 255, 255, 0.8);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .fsm-btn:hover {
+            color: #fff;
+            background: rgba(0, 242, 254, 0.2);
+        }
+
+        .fsm-btn.active {
+            color: #03040c;
+            background: linear-gradient(135deg, var(--neon-cyan-light), var(--neon-cyan));
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.65);
+        }
+
+        #choreography-pill {
+            position: absolute;
+            bottom: 82px;
+            left: 30px;
+            z-index: 10;
+            font-size: 10.5px;
+            letter-spacing: 1.8px;
+            color: #b7fbff;
+            text-transform: uppercase;
+            pointer-events: none;
+            text-align: left;
+            background: rgba(10, 14, 32, 0.8);
+            padding: 6px 22px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 242, 254, 0.4);
+            backdrop-filter: blur(12px);
+            white-space: nowrap;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+        }
+
+        #gesture-hint {
+            position: absolute;
+            bottom: 12px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 240, 170, 0.85);
+            font-size: 11px;
+            pointer-events: none;
+            text-shadow: 0 0 8px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 242, 254, 0.5);
+            z-index: 20;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+        }
+
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            background: #03040c;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            transition: opacity 0.5s ease;
+        }
+
+        .loader-spinner {
+            width: 46px;
+            height: 46px;
+            border: 3px solid rgba(0, 242, 254, 0.2);
+            border-top-color: var(--neon-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text {
+            font-family: 'Fredoka', cursive;
+            font-size: 13px;
+            letter-spacing: 3px;
+            color: #79f7ff;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 900px) {
+            #fsm-ui { bottom: 16px; left: 16px; padding: 5px 8px; gap: 4px; max-width: calc(100vw - 165px); overflow-x: auto; }
+            .fsm-btn { font-size: 8px; padding: 6px 10px; }
+            #choreography-pill { bottom: 70px; left: 16px; font-size: 8.5px; padding: 4px 12px; }
+            #ai-hud { bottom: 16px; right: 16px; padding: 7px; }
+            #cam-wrapper { width: 110px; height: 82px; }
+        }
+    </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/+esm"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loader-spinner"></div>
+        <div class="loading-text">ĐANG KHỞI TẠO NỀN TẢNG ĐỒ HỌA 3D & AI...</div>
+    </div>
+
+    <div id="header-ui">
+        <div class="brand-title">✨ MEMORYZONE 218 ✨</div>
+        <div class="brand-sub">STAGE 4: MEDIAPIPE AI VISION & INTERACTION</div>
+    </div>
+
+    <!-- PIP HUD GIÁM SÁT 21 KHỚP XƯƠNG GÓC DƯỚI PHẢI -->
+    <div id="ai-hud">
+        <div class="ai-header">
+            <span>AI TRACKING</span>
+            <div class="ai-dot" id="ai-dot"></div>
+        </div>
+        <div id="cam-wrapper">
+            <video id="webcam" playsinline autoplay muted></video>
+            <canvas id="hand-canvas"></canvas>
+        </div>
+        <div class="ai-status-pill" id="ai-status">CHỜ CAMERA...</div>
+        <button class="ai-btn" id="toggle-cam-btn">BẬT CAMERA AI</button>
+    </div>
+
+    <div id="choreography-pill">TRẠNG THÁI 1: SÁCH MỞ HỜ 30° · XÒE TAY ĐỂ BUNG TINH CẦU</div>
+
+    <!-- THANH ĐIỀU KHIỂN TRẠNG THÁI FSM -->
+    <div id="fsm-ui">
+        <button class="fsm-btn active" data-state="0">1. Sách Mở Hờ (30°)</button>
+        <button class="fsm-btn" data-state="1">2. Xòe Bung Tinh Cầu (3 trong 1)</button>
+        <button class="fsm-btn" data-state="2">3. Xem Ảnh (Pinch)</button>
+    </div>
+
+    <div id="gesture-hint">Chúm ngón (Pinch): Bắt ảnh | Giơ 1-2 ngón: Đổi ảnh | Xòe tay: Bung tinh cầu | Nắm tay: Thu về sách | Nghiêng tay: Xoay mô hình</div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+
+        const STATES = {
+            BOOK_AJAR: 0,       // Sách mở hờ ~30 độ, lòng sách phát sáng
+            GALAXY_BURST: 1,    // 3 trong 1: Mở 160 độ + bung sáng + tinh cầu đặc
+            FOCUS_PHOTO: 2      // Xem ảnh chi tiết (Hero Photo)
+        };
+
+        const BOOK = {
+            width: 4.6,
+            height: 6.6,
+            thickness: 0.08,
+            bevel: 0.03,
+            spineThickness: 0.50,
+            pageCount: 6,
+            ajarAngleRad: (30 / 180) * Math.PI,  // 30 độ mở hờ ban đầu
+            maxOpenRad: (160 / 180) * Math.PI   // 160 độ mở hoàn toàn (chuẩn yêu cầu)
+        };
+
+        const GALAXY_PARTICLES = 5400;
+        const EXTRA_PAGE_PARTICLES = 36000;
+        const TOTAL_BUFFER_PARTICLES = GALAXY_PARTICLES + EXTRA_PAGE_PARTICLES;
+        const FLARE_COUNT = 360;
+
+        const COVER_PHOTO_COUNT = 8;
+        const EXTRA_GALAXY_PHOTO_COUNT = 4;
+        const TOTAL_PHOTO_COUNT = COVER_PHOTO_COUNT + EXTRA_GALAXY_PHOTO_COUNT;
+
+        let scene, camera, renderer, composer, controls;
+        let albumRoot, spineMesh;
+        let leftCoverHinge, rightCoverHinge;
+        let chibiCoverMat, titleMesh, contourLineMesh;
+        let innerSparksLight;
+
+        let masterParticleMesh, morphShaderMat;
+        let pBookPos, pOpenedPos, pBurstDir, pGalaxyPos, pColors, pSizesClosed, pSizesGalaxy, pPhases, pPageFlags, pArchParams, pIsExtra;
+
+        let heroGiantHearts = [];
+        let stars3Point = [], stars4Point = [], stars5Point = [];
+        let allPhotoCards = [];
+        let chibiProps = [];
+        let selectedPhotoIndex = 0;
+
+        let crossFlareMesh, flareShaderMat;
+
+        let clock = new THREE.Clock();
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Scratch Objects Pool cho zero allocation trong hot loop animate()
+        const _v1 = new THREE.Vector3();
+        const _v2 = new THREE.Vector3();
+        const _v3 = new THREE.Vector3();
+        const _q1 = new THREE.Quaternion();
+        const _q2 = new THREE.Quaternion();
+        const _m1 = new THREE.Matrix4();
+
+        // ==========================================
+        // KHAI BÁO BIẾN TOÀN CỤC CHO AI VÀ GESTURE TƯƠNG TÁC TỪ DEMO4
+        // ==========================================
+        let handLandmarker = null;
+        let webcamRunning = false;
+        let lastVideoTime = -1;
+        let isProcessingAI = false;
+
+        const STATE = {
+            hand: { detected: false, x: 0, y: 0 },
+            rotation: { x: 0.18, y: 0.0 }
+        };
+        let modelRotation = { x: 0.18, y: 0.0 };
+        let fingerGestureActive = false;
+
+        let gestureDebounceTimer = 0;
+        let swipeDebounceTimer = 0;
+        let prevIndexTipY = null;
+        let smoothedPalmSize = 0.22;
+        let targetCameraDistance = 24.5; // Đẩy lùi mặc định 40% (17.0 * 1.44 = 24.5)
+        let handRotationBias = 0.0;
+
+        const webcamElement = document.getElementById('webcam');
+        const handCanvas = document.getElementById('hand-canvas');
+        const handCtx = handCanvas.getContext('2d');
+        const toggleCamBtn = document.getElementById('toggle-cam-btn');
+        const aiStatus = document.getElementById('ai-status');
+        const aiDot = document.getElementById('ai-dot');
+        const fsmButtons = document.querySelectorAll('.fsm-btn');
+        const choreoPill = document.getElementById('choreography-pill');
+
+        const FSM = {
+            currentState: STATES.BOOK_AJAR,
+            targetState: STATES.BOOK_AJAR,
+            stateProgress: 0.0,
+            stateTime: 0.0,
+            transitionDuration: 3.2, // Chuyển động 3 trong 1 chậm rãi, êm ái
+            openProgressLerp: 0.0,
+            burstProgressLerp: 0.0,
+            galaxyProgressLerp: 0.0,
+            bookMeshOpacityLerp: 1.0,
+            galaxyRotAngle: 0.0,
+            vibrateIntensity: 0.0,
+
+            setTarget(newState, photoIdx = -1) {
+                if (photoIdx >= 0) selectedPhotoIndex = photoIdx;
+                if (this.targetState === newState) return;
+
+                if (this.handlers[this.currentState]?.onExit) {
+                    this.handlers[this.currentState].onExit();
+                }
+
+                this.targetState = newState;
+                this.stateProgress = 0.0;
+                this.stateTime = 0.0;
+
+                if (newState === STATES.BOOK_AJAR) this.transitionDuration = 2.4;
+                else if (newState === STATES.GALAXY_BURST) this.transitionDuration = 3.2; // 3 trong 1 chậm rãi
+                else if (newState === STATES.FOCUS_PHOTO) this.transitionDuration = 1.2;
+
+                if (this.handlers[this.targetState]?.onEnter) {
+                    this.handlers[this.targetState].onEnter();
+                }
+
+                this.updateUI();
+            },
+
+            updateUI() {
+                fsmButtons.forEach(btn => {
+                    const s = parseInt(btn.getAttribute('data-state'));
+                    if (s === this.targetState) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+
+                const messages = {
+                    [STATES.BOOK_AJAR]: "TRẠNG THÁI 1: SÁCH MỞ HỜ 30° · XÒE TAY ĐỂ BUNG TINH CẦU",
+                    [STATES.GALAXY_BURST]: "TRẠNG THÁI 2: TINH CẦU 360° ĐẶC · CHỤM NGÓN (PINCH) BẮT ẢNH · NẮM TAY THU HỒI",
+                    [STATES.FOCUS_PHOTO]: `TRẠNG THÁI 3: XEM ẢNH #${selectedPhotoIndex + 1} · GIƠ 1-2 NGÓN ĐỔI ẢNH · XÒE TAY THOÁT`
+                };
+                choreoPill.textContent = messages[this.targetState] || "";
+            },
+
+            handlers: {
+                [STATES.BOOK_AJAR]: {},
+                [STATES.GALAXY_BURST]: {},
+                [STATES.FOCUS_PHOTO]: {}
+            },
+
+            update(dt) {
+                this.stateTime += dt;
+                this.stateProgress = Math.min(this.stateTime / this.transitionDuration, 1.0);
+
+                if (this.handlers[this.targetState]?.update) {
+                    this.handlers[this.targetState].update(dt);
+                }
+
+                if (this.stateProgress >= 1.0 && this.currentState !== this.targetState) {
+                    this.currentState = this.targetState;
+                }
+            }
+        };
+
+        function nextPhoto() {
+            selectedPhotoIndex = (selectedPhotoIndex + 1) % TOTAL_PHOTO_COUNT;
+            FSM.updateUI();
+        }
+
+        function prevPhoto() {
+            selectedPhotoIndex = (selectedPhotoIndex - 1 + TOTAL_PHOTO_COUNT) % TOTAL_PHOTO_COUNT;
+            FSM.updateUI();
+        }
+
+        window.FSM = FSM;
+        window.STATES = STATES;
+        window.nextPhoto = nextPhoto;
+        window.prevPhoto = prevPhoto;
+        Object.defineProperty(window, 'selectedPhotoIndex', {
+            get: () => selectedPhotoIndex,
+            set: (v) => { selectedPhotoIndex = v; }
+        });
+
+        async function bootstrap() {
+            try {
+                await document.fonts.load('700 80px "Fredoka"');
+                await document.fonts.load('700 40px "Montserrat"');
+                await document.fonts.ready;
+            } catch (e) {}
+
+            initScene();
+            window.scene = scene;
+            window.camera = camera;
+            buildVibrantNebulaGalaxySky();
+            setupStudioLighting();
+            buildPhysicallyAccurateBook();
+            buildOptimizedParticleSystem();
+            buildProportionalStarsAndHearts();
+            buildSeamlessQuadCoverPhotos();
+            window.allPhotoCards = allPhotoCards;
+            buildMedicalAndScienceChibiProps();
+            buildCrossStarFlares();
+            setupInteractions();
+
+            const loader = document.getElementById('loading-screen');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 400);
+            }
+
+            animate();
+        }
+
+        window.addEventListener('DOMContentLoaded', bootstrap);
+
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x02030a);
+            scene.fog = new THREE.FogExp2(0x03040e, 0.006);
+
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera.position.set(0, 3.6, 24.5); // Đẩy lùi mặc định 40% (17.0 * 1.44 = 24.5)
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.35;
+            container.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 0, 0);
+            controls.minDistance = 5.0;
+            controls.maxDistance = 85.0;
+
+            composer = new EffectComposer(renderer);
+            composer.addPass(new RenderPass(scene, camera));
+
+            const bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                0.85,
+                0.5,
+                0.72
+            );
+            composer.addPass(bloomPass);
+            composer.addPass(new OutputPass());
+        }
+
+        function buildVibrantNebulaGalaxySky() {
+            const cvs = document.createElement('canvas');
+            cvs.width = 1024; cvs.height = 512;
+            const ctx = cvs.getContext('2d');
+
+            const baseGrad = ctx.createRadialGradient(512, 256, 50, 512, 256, 550);
+            baseGrad.addColorStop(0, '#16082c');
+            baseGrad.addColorStop(0.5, '#070314');
+            baseGrad.addColorStop(1, '#010206');
+            ctx.fillStyle = baseGrad;
+            ctx.fillRect(0, 0, 1024, 512);
+
+            function drawNebulaCloud(cx, cy, rx, ry, col1, col2) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                const g = ctx.createRadialGradient(0, 0, 10, 0, 0, rx);
+                g.addColorStop(0, col1);
+                g.addColorStop(0.45, col2);
+                g.addColorStop(1, 'transparent');
+                ctx.fillStyle = g;
+                ctx.scale(1.0, ry / rx);
+                ctx.beginPath();
+                ctx.arc(0, 0, rx, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            drawNebulaCloud(250, 160, 250, 150, 'rgba(255, 45, 141, 0.5)', 'rgba(0, 242, 254, 0.25)');
+            drawNebulaCloud(800, 350, 275, 160, 'rgba(168, 85, 247, 0.5)', 'rgba(255, 45, 141, 0.25)');
+            drawNebulaCloud(512, 225, 220, 130, 'rgba(255, 215, 0, 0.4)', 'rgba(0, 255, 102, 0.2)');
+
+            for (let i = 0; i < 2000; i++) {
+                const sx = Math.random() * 1024;
+                const sy = Math.random() * 512;
+                const sr = Math.random() * 1.8;
+                const sa = 0.4 + Math.random() * 0.6;
+                ctx.fillStyle = (Math.random() > 0.3) ? `rgba(255, 255, 255, ${sa})` : `rgba(255, 128, 191, ${sa})`;
+                ctx.beginPath();
+                ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const skyTex = new THREE.CanvasTexture(cvs);
+            skyTex.mapping = THREE.EquirectangularReflectionMapping;
+            skyTex.colorSpace = THREE.SRGBColorSpace;
+            scene.background = skyTex;
+            scene.environment = skyTex;
+        }
+
+        function setupStudioLighting() {
+            scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+
+            const coreCyanLight = new THREE.PointLight(0x00f2fe, 4.0, 28);
+            coreCyanLight.position.set(0, 1.2, 2.0);
+            scene.add(coreCyanLight);
+
+            innerSparksLight = new THREE.PointLight(0xbdf8ff, 0.0, 22);
+            innerSparksLight.position.set(0, 0.6, 0.8);
+            scene.add(innerSparksLight);
+
+            const rimCyan = new THREE.DirectionalLight(0x00f2fe, 3.2);
+            rimCyan.position.set(-12, 9, -7);
+            scene.add(rimCyan);
+
+            const rimPink = new THREE.DirectionalLight(0xff2d8d, 3.4);
+            rimPink.position.set(12, -7, -7);
+            scene.add(rimPink);
+
+            const keyFront = new THREE.DirectionalLight(0xfffaed, 2.6);
+            keyFront.position.set(0, 8, 14);
+            scene.add(keyFront);
+        }
+
+        function createBlackGalaxyAnimeMasterTitle() {
+            const cvs = document.createElement('canvas');
+            cvs.width = 1024; cvs.height = 1024;
+            const ctx = cvs.getContext('2d');
+            ctx.clearRect(0, 0, 1024, 1024);
+
+            ctx.save();
+            ctx.translate(512, 512);
+            ctx.rotate(-14 * Math.PI / 180);
+
+            ctx.font = '700 92px "Fredoka", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            // VIỀN TRẮNG ĐẬM GẤP 3 LẦN
+            ctx.shadowColor = 'rgba(0, 242, 254, 0.8)';
+            ctx.shadowBlur = 20;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 24;
+            ctx.strokeText('MEMORYZONE', 0, -42);
+            ctx.font = '700 108px "Fredoka", sans-serif';
+            ctx.strokeText('2 1 8', 0, 65);
+
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = '#00f2fe';
+            ctx.lineWidth = 4;
+            ctx.strokeText('2 1 8', 0, 65);
+            ctx.font = '700 92px "Fredoka", sans-serif';
+            ctx.strokeText('MEMORYZONE', 0, -42);
+
+            const blackGalaxyGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 250);
+            blackGalaxyGrad.addColorStop(0.0, '#101726');
+            blackGalaxyGrad.addColorStop(0.5, '#070b14');
+            blackGalaxyGrad.addColorStop(1.0, '#010308');
+
+            ctx.fillStyle = blackGalaxyGrad;
+            ctx.font = '700 92px "Fredoka", sans-serif';
+            ctx.fillText('MEMORYZONE', 0, -42);
+
+            ctx.font = '700 108px "Fredoka", sans-serif';
+            ctx.fillText('2 1 8', 0, 65);
+
+            for (let i = 0; i < 40; i++) {
+                const gx = (Math.random() - 0.5) * 440;
+                const gy = (Math.random() - 0.5) * 220;
+                ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : (Math.random() > 0.5 ? '#00f2fe' : '#ff80bf');
+                ctx.beginPath();
+                ctx.arc(gx, gy, 1.5 + Math.random() * 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+
+            const tex = new THREE.CanvasTexture(cvs);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.needsUpdate = true;
+
+            const geo = new THREE.PlaneGeometry(4.4, 4.4);
+            const mat = new THREE.MeshStandardMaterial({
+                map: tex,
+                transparent: true,
+                metalness: 0.9,
+                roughness: 0.15,
+                emissive: 0x00f2fe,
+                emissiveIntensity: 0.42,
+                depthWrite: false
+            });
+
+            return new THREE.Mesh(geo, mat);
+        }
+
+        function createChibiContourBorder(w, h) {
+            const off = 0.05;
+            const pts = [
+                new THREE.Vector3(off, -h / 2 + off, 0),
+                new THREE.Vector3(w - off, -h / 2 + off, 0),
+                new THREE.Vector3(w - off, h / 2 - off, 0),
+                new THREE.Vector3(off, h / 2 - off, 0),
+                new THREE.Vector3(off, -h / 2 + off, 0)
+            ];
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            return new THREE.Line(geo, new THREE.LineBasicMaterial({
+                color: 0x00f2fe,
+                transparent: true,
+                opacity: 0.95
+            }));
+        }
+
+        function createCoverExtrusion(w, h, depth, bevel) {
+            const shape = new THREE.Shape();
+            const r = 0.22;
+            shape.moveTo(0, -h / 2);
+            shape.lineTo(w - r, -h / 2);
+            shape.quadraticCurveTo(w, -h / 2, w, -h / 2 + r);
+            shape.lineTo(w, h / 2 - r);
+            shape.quadraticCurveTo(w, h / 2, w - r, h / 2);
+            shape.lineTo(0, h / 2);
+            shape.lineTo(0, -h / 2);
+
+            return new THREE.ExtrudeGeometry(shape, {
+                depth: depth,
+                bevelEnabled: true,
+                bevelSegments: 2,
+                steps: 1,
+                bevelSize: bevel,
+                bevelThickness: bevel
+            });
+        }
+
+        function createCyanWhiteMarbleCoverTexture() {
+            const cvs = document.createElement('canvas');
+            cvs.width = 512; cvs.height = 512;
+            const ctx = cvs.getContext('2d');
+
+            const baseGrad = ctx.createLinearGradient(0, 0, 512, 512);
+            baseGrad.addColorStop(0.0, '#00b7d9');
+            baseGrad.addColorStop(0.35, '#00e5ff');
+            baseGrad.addColorStop(0.7, '#008ba8');
+            baseGrad.addColorStop(1.0, '#005f73');
+            ctx.fillStyle = baseGrad;
+            ctx.fillRect(0, 0, 512, 512);
+
+            const marblePoints = [
+                { x: 150, y: 110, r: 160, a: 0.55 },
+                { x: 375, y: 175, r: 190, a: 0.45 },
+                { x: 225, y: 350, r: 200, a: 0.60 },
+                { x: 410, y: 410, r: 170, a: 0.40 }
+            ];
+
+            marblePoints.forEach(p => {
+                const g = ctx.createRadialGradient(p.x, p.y, 10, p.x, p.y, p.r);
+                g.addColorStop(0.0, `rgba(255, 255, 255, ${p.a})`);
+                g.addColorStop(0.45, `rgba(225, 253, 255, ${p.a * 0.55})`);
+                g.addColorStop(0.85, 'rgba(0, 242, 254, 0.15)');
+                g.addColorStop(1.0, 'transparent');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            const tex = new THREE.CanvasTexture(cvs);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        function buildPhysicallyAccurateBook() {
+            albumRoot = new THREE.Group();
+            albumRoot.position.set(0, 0, 0);
+            albumRoot.rotation.set(0.18, 0.0, 0);
+            scene.add(albumRoot);
+
+            const W = BOOK.width;
+            const H = BOOK.height;
+            const T = BOOK.thickness;
+            const S = BOOK.spineThickness;
+            const R = S / 2;
+
+            const coverTexture = createCyanWhiteMarbleCoverTexture();
+
+            chibiCoverMat = new THREE.MeshPhysicalMaterial({
+                map: coverTexture,
+                color: 0xffffff,
+                metalness: 0.35,
+                roughness: 0.12,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.03,
+                reflectivity: 0.98,
+                emissive: 0x00f2fe,
+                emissiveIntensity: 0.18,
+                transparent: true,
+                opacity: 1.0
+            });
+
+            const spineGeo = new THREE.CylinderGeometry(R, R, H + BOOK.bevel * 2, 24, 1, false, Math.PI / 2, Math.PI);
+            spineGeo.center();
+            spineMesh = new THREE.Mesh(spineGeo, chibiCoverMat);
+            spineMesh.rotation.y = Math.PI;
+            albumRoot.add(spineMesh);
+
+            leftCoverHinge = new THREE.Group();
+            leftCoverHinge.position.set(0, 0, -R);
+            albumRoot.add(leftCoverHinge);
+
+            const leftGeo = createCoverExtrusion(W, H, T, BOOK.bevel);
+            const leftMesh = new THREE.Mesh(leftGeo, chibiCoverMat);
+            leftMesh.position.set(0, 0, -T);
+            leftCoverHinge.add(leftMesh);
+
+            rightCoverHinge = new THREE.Group();
+            rightCoverHinge.position.set(0, 0, R);
+            albumRoot.add(rightCoverHinge);
+
+            const rightGeo = createCoverExtrusion(W, H, T, BOOK.bevel);
+            const rightMesh = new THREE.Mesh(rightGeo, chibiCoverMat);
+            rightMesh.position.set(0, 0, 0);
+            rightCoverHinge.add(rightMesh);
+
+            contourLineMesh = createChibiContourBorder(W, H);
+            contourLineMesh.position.set(0, 0, T + BOOK.bevel + 0.003);
+            rightCoverHinge.add(contourLineMesh);
+
+            titleMesh = createBlackGalaxyAnimeMasterTitle();
+            titleMesh.position.set(W * 0.50, 0.0, T + BOOK.bevel + 0.008);
+            rightCoverHinge.add(titleMesh);
+        }
+
+        function buildOptimizedParticleSystem() {
+            const count = TOTAL_BUFFER_PARTICLES;
+            pBookPos = new Float32Array(count * 3);
+            pOpenedPos = new Float32Array(count * 3);
+            pBurstDir = new Float32Array(count * 3);
+            pGalaxyPos = new Float32Array(count * 3);
+            pColors = new Float32Array(count * 3);
+            pSizesClosed = new Float32Array(count);
+            pSizesGalaxy = new Float32Array(count);
+            pPhases = new Float32Array(count);
+            pPageFlags = new Float32Array(count);
+            pArchParams = new Float32Array(count);
+            pIsExtra = new Float32Array(count);
+
+            const W = BOOK.width;
+            const H = BOOK.height;
+            const T = BOOK.thickness;
+            const R = BOOK.spineThickness / 2;
+            const ajarRadHalf = BOOK.ajarAngleRad / 2;
+            const openRadHalf = BOOK.maxOpenRad / 2;
+
+            // Bảng màu 6 trang sắc nét riêng biệt, nhìn rõ từng trang:
+            const exactPagesPalette = [
+                new THREE.Color(0x00f2fe), // Trang 1: Cyan ánh lam
+                new THREE.Color(0xff2d8d), // Trang 2: Hồng neon đào
+                new THREE.Color(0xffd700), // Trang 3: Vàng hoàng kim
+                new THREE.Color(0xa855f7), // Trang 4: Tím thạch anh
+                new THREE.Color(0x00ff88), // Trang 5: Xanh ngọc lục bảo
+                new THREE.Color(0xff5533)  // Trang 6: Cam san hô rực rỡ
+            ];
+
+            // Bảng màu hạt khối cầu đa sắc rực rỡ (Vibrant Colored Particles):
+            const vibrantSpherePalette = [
+                new THREE.Color(0xffd700), // Vàng kim lõi
+                new THREE.Color(0xff2d8d), // Hồng neon
+                new THREE.Color(0x00f2fe), // Cyan
+                new THREE.Color(0xa855f7), // Tím
+                new THREE.Color(0x00ff88), // Xanh ngọc
+                new THREE.Color(0xff80bf), // Hồng phấn
+                new THREE.Color(0xffffff)  // Trắng sao
+            ];
+
+            const cCyan = new THREE.Color(0x00f2fe);
+            const cWhite = new THREE.Color(0xffffff);
+
+            for (let i = 0; i < count; i++) {
+                pPhases[i] = Math.random() * Math.PI * 2;
+                const isExtra = (i >= GALAXY_PARTICLES) ? 1.0 : 0.0;
+                pIsExtra[i] = isExtra;
+
+                let bx = 0, by = 0, bz = 0;
+                let ox = 0, oy = 0, oz = 0;
+                let col = cWhite.clone();
+                let szClosed = 0.028;
+                let szGalaxy = 0.35;
+                let isPage = 0.0;
+                let archParam = 0.0;
+
+                if (isExtra > 0.5 || (i < GALAXY_PARTICLES * 0.70)) {
+                    isPage = 1.0;
+                    const pageIndex = i % BOOK.pageCount;
+                    const pageRatio = (pageIndex + 1) / (BOOK.pageCount + 1);
+
+                    const u = 0.12 + Math.random() * (W - 0.28);
+                    const v = (Math.random() - 0.5) * (H - 0.35);
+                    const zSlot = THREE.MathUtils.lerp(-R + 0.035, R - 0.035, pageRatio);
+
+                    // Tọa độ vị trí trong sách mở hờ 30 độ (BOOK_AJAR)
+                    const ajarPageAng = THREE.MathUtils.lerp(-ajarRadHalf, ajarRadHalf, pageRatio);
+                    bx = u * Math.cos(ajarPageAng);
+                    by = v;
+                    bz = zSlot + u * Math.sin(ajarPageAng);
+
+                    // Tọa độ vị trí khi sách mở hoàn toàn 160 độ (GALAXY_BURST)
+                    const openPageAng = THREE.MathUtils.lerp(-openRadHalf, openRadHalf, pageRatio);
+                    ox = u * Math.cos(openPageAng);
+                    oy = v;
+                    oz = zSlot + u * Math.sin(openPageAng);
+
+                    archParam = 0.35 * Math.sin(pageRatio * Math.PI);
+
+                    // Màu sắc trang sách rõ ràng, sắc nét
+                    col = exactPagesPalette[pageIndex].clone();
+                    const isPageEdge = (u > W - 0.45);
+                    if (isPageEdge) {
+                        col.lerp(cWhite, 0.40); // Viền trang sáng rõ màu trắng pha ánh màu trang
+                        szClosed = 0.048;       // Hạt mép trang to hơn để tạo đường nét trang sách phát sáng
+                    } else {
+                        szClosed = 0.028;
+                    }
+                } else {
+                    // Bìa sách và gáy sách
+                    const sub = i / (GALAXY_PARTICLES * 0.30);
+                    if (sub < 0.45) {
+                        const u = Math.random() * W;
+                        const v = (Math.random() - 0.5) * H;
+                        bx = u * Math.cos(-ajarRadHalf);
+                        by = v;
+                        bz = -R - u * Math.sin(-ajarRadHalf);
+                        ox = u * Math.cos(openRadHalf);
+                        oy = v;
+                        oz = -R - u * Math.sin(openRadHalf);
+                        col = cCyan.clone().lerp(cWhite, Math.random() * 0.5);
+                    } else if (sub < 0.90) {
+                        const u = Math.random() * W;
+                        const v = (Math.random() - 0.5) * H;
+                        bx = u * Math.cos(ajarRadHalf);
+                        by = v;
+                        bz = R + u * Math.sin(ajarRadHalf);
+                        ox = u * Math.cos(-openRadHalf);
+                        oy = v;
+                        oz = R + u * Math.sin(-openRadHalf);
+                        col = cCyan.clone().lerp(new THREE.Color(0xff2d8d), Math.random() * 0.4);
+                    } else {
+                        const theta = (Math.random() - 0.5) * Math.PI;
+                        bx = -R * Math.cos(theta);
+                        by = (Math.random() - 0.5) * H;
+                        bz = R * Math.sin(theta);
+                        ox = bx; oy = by; oz = bz;
+                        col = cCyan.clone();
+                    }
+                    szClosed = 0.055;
+                }
+
+                pBookPos[i * 3] = bx;
+                pBookPos[i * 3 + 1] = by;
+                pBookPos[i * 3 + 2] = bz;
+
+                pOpenedPos[i * 3] = ox;
+                pOpenedPos[i * 3 + 1] = oy;
+                pOpenedPos[i * 3 + 2] = oz;
+
+                pPageFlags[i] = isPage;
+                pArchParams[i] = archParam;
+
+                const bDir = new THREE.Vector3(
+                    ox + (Math.random() - 0.5) * 5.5,
+                    oy + (Math.random() - 0.5) * 5.5,
+                    oz + (Math.random() - 0.5) * 5.5
+                ).normalize();
+                pBurstDir[i * 3] = bDir.x;
+                pBurstDir[i * 3 + 1] = bDir.y;
+                pBurstDir[i * 3 + 2] = bDir.z;
+
+                // Tọa độ khối tinh cầu đặc 360 độ (Dense Particle Sphere)
+                const sR = 2.0 + Math.pow(Math.random(), 0.55) * 14.5;
+                const sTheta = Math.random() * Math.PI * 2;
+                const sPhi = Math.acos(2 * Math.random() - 1);
+
+                const gx = sR * Math.sin(sPhi) * Math.cos(sTheta);
+                const gy = sR * Math.sin(sPhi) * Math.sin(sTheta) * 0.92;
+                const gz = sR * Math.cos(sPhi);
+
+                pGalaxyPos[i * 3] = gx;
+                pGalaxyPos[i * 3 + 1] = gy;
+                pGalaxyPos[i * 3 + 2] = gz;
+
+                // Kích thước hạt theo bán kính (Radial Particle Sizing: to ở tâm, nhỏ dần ra ngoài)
+                const rNorm = THREE.MathUtils.clamp(sR / 16.5, 0.0, 1.0);
+                const radialScale = 1.70 - 1.0 * rNorm; // Tâm: 1.7x, rìa ngoài: 0.7x
+                szGalaxy = (0.32 + Math.random() * 0.26) * radialScale;
+
+                // Thêm hạt màu vào khối cầu (Sphere) cho phong phú, huyền ảo
+                if (isExtra < 0.5) {
+                    const cIdx = Math.floor(rNorm * (vibrantSpherePalette.length - 1));
+                    const sphereCol = vibrantSpherePalette[cIdx].clone();
+                    if (Math.random() > 0.35) {
+                        sphereCol.lerp(vibrantSpherePalette[(cIdx + 1) % vibrantSpherePalette.length], Math.random() * 0.6);
+                    }
+                    col.copy(sphereCol);
+                }
+
+                pColors[i * 3] = col.r;
+                pColors[i * 3 + 1] = col.g;
+                pColors[i * 3 + 2] = col.b;
+
+                pSizesClosed[i] = szClosed;
+                pSizesGalaxy[i] = szGalaxy;
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(pBookPos, 3));
+            geo.setAttribute('openedPosition', new THREE.BufferAttribute(pOpenedPos, 3));
+            geo.setAttribute('burstDirection', new THREE.BufferAttribute(pBurstDir, 3));
+            geo.setAttribute('galaxyPosition', new THREE.BufferAttribute(pGalaxyPos, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+            geo.setAttribute('sizeClosed', new THREE.BufferAttribute(pSizesClosed, 1));
+            geo.setAttribute('sizeGalaxy', new THREE.BufferAttribute(pSizesGalaxy, 1));
+            geo.setAttribute('phase', new THREE.BufferAttribute(pPhases, 1));
+            geo.setAttribute('pageFlag', new THREE.BufferAttribute(pPageFlags, 1));
+            geo.setAttribute('archParam', new THREE.BufferAttribute(pArchParams, 1));
+            geo.setAttribute('isExtra', new THREE.BufferAttribute(pIsExtra, 1));
+
+            morphShaderMat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute vec3 openedPosition;
+                    attribute vec3 burstDirection;
+                    attribute vec3 galaxyPosition;
+                    attribute vec3 color;
+                    attribute float sizeClosed;
+                    attribute float sizeGalaxy;
+                    attribute float phase;
+                    attribute float pageFlag;
+                    attribute float archParam;
+                    attribute float isExtra;
+
+                    uniform float uOpenRatio;
+                    uniform float uBurstRatio;
+                    uniform float uGalaxyRatio;
+                    uniform float uTime;
+                    uniform float uVibrate;
+                    uniform float uGalaxyRot;
+                    uniform float uFocusDim;
+
+                    varying vec3 vColor;
+                    varying float vAlpha;
+
+                    void main() {
+                        vColor = color;
+
+                        vec3 curP = mix(position, openedPosition, uOpenRatio);
+                        if (pageFlag > 0.5) {
+                            float curve = sin(uOpenRatio * 3.14159265) * archParam * sin((curP.x / 4.35) * 3.14159265);
+                            curP.z -= curve;
+                        }
+
+                        if (uVibrate > 0.01) {
+                            curP += burstDirection * sin(uTime * 48.0 + phase * 10.0) * 0.06 * uVibrate;
+                        }
+
+                        float burstDist = (7.5 + sin(phase * 4.0) * 4.5) * uBurstRatio;
+                        vec3 burstP = curP + burstDirection * burstDist;
+
+                        float c = cos(uGalaxyRot);
+                        float s = sin(uGalaxyRot);
+                        vec3 rotGalaxy = vec3(
+                            galaxyPosition.x * c - galaxyPosition.z * s,
+                            galaxyPosition.y,
+                            galaxyPosition.x * s + galaxyPosition.z * c
+                        );
+
+                        vec3 finalP = mix(burstP, rotGalaxy, uGalaxyRatio);
+                        vec4 mvPos = modelViewMatrix * vec4(finalP, 1.0);
+                        gl_Position = projectionMatrix * mvPos;
+
+                        float curSize = mix(sizeClosed, sizeGalaxy, uGalaxyRatio);
+                        float pulse = 1.0 + 0.32 * sin(uTime * 3.5 + phase * 6.28);
+                        gl_PointSize = curSize * pulse * (300.0 / -mvPos.z);
+
+                        float extraAlpha = (1.0 - smoothstep(0.0, 0.45, uBurstRatio)) * (1.0 - uGalaxyRatio);
+                        float baseAlpha = 0.82 + 0.18 * uGalaxyRatio;
+                        vAlpha = mix(baseAlpha, extraAlpha * 0.95, isExtra) * uFocusDim;
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    varying float vAlpha;
+
+                    void main() {
+                        float dist = length(gl_PointCoord - vec2(0.5));
+                        if (dist > 0.5) discard;
+                        float glow = 1.0 - smoothstep(0.18, 0.5, dist);
+                        gl_FragColor = vec4(vColor, glow * vAlpha);
+                    }
+                `,
+                uniforms: {
+                    uOpenRatio: { value: 0.0 },
+                    uBurstRatio: { value: 0.0 },
+                    uGalaxyRatio: { value: 0.0 },
+                    uTime: { value: 0.0 },
+                    uVibrate: { value: 0.0 },
+                    uGalaxyRot: { value: 0.0 },
+                    uFocusDim: { value: 1.0 }
+                },
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            masterParticleMesh = new THREE.Points(geo, morphShaderMat);
+            albumRoot.add(masterParticleMesh);
+        }
+
+        function createParametricStarGeometry(spikes, outerR, innerR, depth = 0.09) {
+            const shape = new THREE.Shape();
+            const total = spikes * 2;
+            for (let i = 0; i < total; i++) {
+                const r = (i % 2 === 0) ? outerR : innerR;
+                const a = (i / total) * Math.PI * 2 - Math.PI / 2;
+                const x = Math.cos(a) * r;
+                const y = Math.sin(a) * r;
+                if (i === 0) shape.moveTo(x, y);
+                else shape.lineTo(x, y);
+            }
+            shape.closePath();
+
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                depth: depth,
+                bevelEnabled: true,
+                bevelSegments: 1,
+                steps: 1,
+                bevelSize: 0.04,
+                bevelThickness: 0.05
+            });
+            geo.center();
+            return geo;
+        }
+
+        function createDiamondHeartGeometry() {
+            const geo = new THREE.BufferGeometry();
+            const vertices = new Float32Array([
+                0, 0.1, 0.45,
+                0, 0.45, 0.15,
+                0.55, 0.85, 0.12,
+                0.95, 0.4, 0.1,
+                0.55, -0.2, 0.1,
+                0, -0.95, 0.12,
+                -0.55, -0.2, 0.1,
+                -0.95, 0.4, 0.1,
+                -0.55, 0.85, 0.12,
+                0, 0.1, -0.45
+            ]);
+            const indices = [
+                0, 1, 2,  0, 2, 3,  0, 3, 4,  0, 4, 5,
+                0, 5, 6,  0, 6, 7,  0, 7, 8,  0, 8, 1,
+                9, 2, 1,  9, 3, 2,  9, 4, 3,  9, 5, 4,
+                9, 6, 5,  9, 7, 6,  9, 8, 7,  9, 1, 8
+            ];
+            geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geo.setIndex(indices);
+            geo.computeVertexNormals();
+            return geo;
+        }
+
+        function buildProportionalStarsAndHearts() {
+            const iridescentRubyMat = new THREE.MeshPhysicalMaterial({
+                color: 0xfff0f6, metalness: 0.06, roughness: 0.02, transmission: 0.98, ior: 2.35,
+                thickness: 2.2, clearcoat: 1.0, clearcoatRoughness: 0.02, iridescence: 1.0, iridescenceIOR: 1.6,
+                iridescenceThicknessRange: [120, 450], attenuationColor: new THREE.Color(0xff2d8d), attenuationDistance: 1.8,
+                flatShading: true, side: THREE.DoubleSide
+            });
+
+            const iridescentPinkMat = new THREE.MeshPhysicalMaterial({
+                color: 0xfff5fb, metalness: 0.08, roughness: 0.02, transmission: 0.98, ior: 2.30,
+                thickness: 2.0, clearcoat: 1.0, clearcoatRoughness: 0.02, iridescence: 1.0, iridescenceIOR: 1.6,
+                iridescenceThicknessRange: [150, 480], attenuationColor: new THREE.Color(0xff80bf), attenuationDistance: 1.8,
+                flatShading: true, side: THREE.DoubleSide
+            });
+
+            const iridescentCyanMat = new THREE.MeshPhysicalMaterial({
+                color: 0xf0fbff, metalness: 0.05, roughness: 0.02, transmission: 0.99, ior: 2.40,
+                thickness: 2.4, clearcoat: 1.0, clearcoatRoughness: 0.02, iridescence: 1.0, iridescenceIOR: 1.6,
+                iridescenceThicknessRange: [100, 420], attenuationColor: new THREE.Color(0x00f2fe), attenuationDistance: 2.0,
+                flatShading: true, side: THREE.DoubleSide
+            });
+
+            const heartGeo = createDiamondHeartGeometry();
+            for (let i = 0; i < 3; i++) {
+                const mesh = new THREE.Mesh(heartGeo, (i % 2 === 0) ? iridescentRubyMat : iridescentPinkMat);
+                mesh.scale.setScalar(1.65);
+                scene.add(mesh);
+                heroGiantHearts.push({
+                    mesh,
+                    baseRad: 7.5 + i * 2.2,
+                    angle: (i / 3) * Math.PI * 2,
+                    speed: 0.05 * (i % 2 === 0 ? 1 : -1),
+                    inclination: (i - 1) * 0.45
+                });
+            }
+
+            const star3Geo = createParametricStarGeometry(3, 0.46, 0.15);
+            for (let i = 0; i < 25; i++) {
+                const mesh = new THREE.Mesh(star3Geo, iridescentCyanMat);
+                mesh.scale.setScalar(0.78 + Math.random() * 0.35);
+                scene.add(mesh);
+                stars3Point.push({
+                    mesh,
+                    rad: 4.5 + Math.random() * 9.5,
+                    theta: Math.random() * Math.PI * 2,
+                    phi: Math.acos(2 * Math.random() - 1),
+                    speed: 0.08 + Math.random() * 0.06,
+                    rotSpeedX: 0.6 + Math.random() * 0.8,
+                    rotSpeedY: 0.8 + Math.random() * 0.8,
+                    pulsePhase: Math.random() * Math.PI * 2
+                });
+            }
+
+            const star4Geo = createParametricStarGeometry(4, 0.45, 0.14);
+            for (let i = 0; i < 25; i++) {
+                const mesh = new THREE.Mesh(star4Geo, iridescentPinkMat);
+                mesh.scale.setScalar(0.72 + Math.random() * 0.35);
+                scene.add(mesh);
+                stars4Point.push({
+                    mesh,
+                    rad: 5.0 + Math.random() * 10.0,
+                    theta: Math.random() * Math.PI * 2,
+                    phi: Math.acos(2 * Math.random() - 1),
+                    speed: -0.07 - Math.random() * 0.06,
+                    rotSpeedX: 0.7 + Math.random() * 0.7,
+                    rotSpeedY: 0.9 + Math.random() * 0.7,
+                    pulsePhase: Math.random() * Math.PI * 2
+                });
+            }
+
+            const star5Geo = createParametricStarGeometry(5, 0.42, 0.16);
+            for (let i = 0; i < 25; i++) {
+                const mesh = new THREE.Mesh(star5Geo, iridescentRubyMat);
+                mesh.scale.setScalar(0.70 + Math.random() * 0.35);
+                scene.add(mesh);
+                stars5Point.push({
+                    mesh,
+                    rad: 5.5 + Math.random() * 10.5,
+                    theta: Math.random() * Math.PI * 2,
+                    phi: Math.acos(2 * Math.random() - 1),
+                    speed: 0.06 + Math.random() * 0.07,
+                    rotSpeedX: 0.8 + Math.random() * 0.8,
+                    rotSpeedY: 1.0 + Math.random() * 0.8,
+                    pulsePhase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function buildCrossStarFlares() {
+            const cvs = document.createElement('canvas');
+            cvs.width = 128; cvs.height = 128;
+            const ctx = cvs.getContext('2d');
+
+            const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            g.addColorStop(0, '#ffffff');
+            g.addColorStop(0.18, 'rgba(255, 240, 160, 0.98)');
+            g.addColorStop(0.5, 'rgba(0, 242, 254, 0.35)');
+            g.addColorStop(1, 'transparent');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, 128, 128);
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(64, 5); ctx.lineTo(64, 123); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(5, 64); ctx.lineTo(123, 64); ctx.stroke();
+
+            const tex = new THREE.CanvasTexture(cvs);
+
+            const count = FLARE_COUNT;
+            const pos = new Float32Array(count * 3);
+            const sizes = new Float32Array(count);
+            const phases = new Float32Array(count);
+
+            for (let i = 0; i < count; i++) {
+                const r = 3.5 + Math.random() * 18.0;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+
+                pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.92;
+                pos[i * 3 + 2] = r * Math.cos(phi);
+
+                sizes[i] = 1.3 + Math.random() * 1.8;
+                phases[i] = Math.random() * 20.0;
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            geo.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+
+            flareShaderMat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float size;
+                    attribute float phase;
+                    uniform float uTime;
+                    uniform float uGalaxyRatio;
+                    uniform float uFocusDim;
+                    varying float vAlpha;
+
+                    void main() {
+                        float wave = sin(uTime * 4.0 + phase);
+                        float flash = pow(max(0.0, wave), 2.5);
+                        vAlpha = flash * uGalaxyRatio * uFocusDim;
+
+                        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                        gl_Position = projectionMatrix * mv;
+                        gl_PointSize = size * (1.0 + 1.5 * flash) * (260.0 / -mv.z);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D uTex;
+                    varying float vAlpha;
+                    void main() {
+                        vec4 col = texture2D(uTex, gl_PointCoord);
+                        gl_FragColor = vec4(col.rgb, col.a * vAlpha);
+                    }
+                `,
+                uniforms: {
+                    uTex: { value: tex },
+                    uTime: { value: 0.0 },
+                    uGalaxyRatio: { value: 0.0 },
+                    uFocusDim: { value: 1.0 }
+                },
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            crossFlareMesh = new THREE.Points(geo, flareShaderMat);
+            scene.add(crossFlareMesh);
+        }
+
+        function createFramelessPhotoTexture(index) {
+            const cvs = document.createElement('canvas');
+            cvs.width = 256; cvs.height = 340;
+            const ctx = cvs.getContext('2d');
+
+            const grad = ctx.createLinearGradient(0, 0, 256, 340);
+            const palettes = [
+                ['#002b36', '#00f2fe', '#d4fcff'],
+                ['#1e0538', '#ff2d8d', '#ff99cc'],
+                ['#022340', '#0099ff', '#66ccff'],
+                ['#023826', '#11998e', '#38ef7d'],
+                ['#38020f', '#ff416c', '#ff4b2b'],
+                ['#1a2a6c', '#b21f1f', '#fdbb2d'],
+                ['#2b5876', '#4e4376', '#a855f7'],
+                ['#000428', '#004e92', '#00f2fe'],
+                ['#833ab4', '#fd1d1d', '#fcb045'],
+                ['#c31432', '#240b36', '#ff2d8d'],
+                ['#4776e6', '#8e54e9', '#ff99cc'],
+                ['#0f2027', '#203a43', '#2c5364']
+            ];
+
+            const cols = palettes[index % palettes.length];
+            grad.addColorStop(0, cols[0]);
+            grad.addColorStop(0.5, cols[1]);
+            grad.addColorStop(1, cols[2]);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 340);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+            ctx.beginPath();
+            ctx.arc(128, 150, 70, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '700 24px "Fredoka", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`KỶ NIỆM #${index + 1}`, 128, 145);
+
+            ctx.font = '600 12px "Montserrat", sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.fillText("NIÊN KHÓA 2023 — 2026", 128, 170);
+
+            ctx.font = '700 14px "Montserrat", sans-serif';
+            ctx.fillStyle = '#ffffff';
+            const captions = [
+                "Lễ Khai Giảng 218", "Hội Trại Thanh Xuân", "Tiết Học Cuối Cùng", "Chuyến Đi Khó Quên",
+                "Áo Blouse Trắng", "Ống Nghe Y Đức", "Phòng Thí Nghiệm", "Lời Hứa Ban Mai",
+                "Năm Tháng Rực Rỡ", "Khoảnh Khắc Vô Giá", "Khát Vọng Bay Xa", "Mãi Mãi Bên Nhau"
+            ];
+            ctx.fillText(captions[index % captions.length], 128, 280);
+
+            ctx.font = '500 9px "Montserrat", sans-serif';
+            ctx.fillStyle = '#baf8ff';
+            ctx.fillText(index < 8 ? "COVER PHOTO (DEFAULT)" : "GALAXY FLOATING PHOTO", 128, 305);
+
+            const tex = new THREE.CanvasTexture(cvs);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            return tex;
+        }
+
+        function createPhotoCardMesh(tex, width = 1.10, height = 1.45) {
+            const group = new THREE.Group();
+
+            // 1. Backplate khung nổi 3D với viền sang trọng
+            const backplateGeo = new THREE.BoxGeometry(width + 0.10, height + 0.12, 0.035);
+            const backplateMat = new THREE.MeshStandardMaterial({
+                color: 0x080c18,
+                metalness: 0.6,
+                roughness: 0.25
+            });
+            const backplate = new THREE.Mesh(backplateGeo, backplateMat);
+            group.add(backplate);
+
+            // 2. Viền neon phát quang tinh tế
+            const frameEdges = new THREE.EdgesGeometry(backplateGeo);
+            const frameMat = new THREE.LineBasicMaterial({
+                color: 0x00f2fe,
+                transparent: true,
+                opacity: 0.85
+            });
+            const frameLine = new THREE.LineSegments(frameEdges, frameMat);
+            group.add(frameLine);
+
+            // 3. Mặt ảnh kỷ niệm (Front photo plane)
+            const photoGeo = new THREE.PlaneGeometry(width, height);
+            const photoMat = new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: true,
+                side: THREE.FrontSide
+            });
+            const photoPlane = new THREE.Mesh(photoGeo, photoMat);
+            photoPlane.position.z = 0.020;
+            group.add(photoPlane);
+
+            return group;
+        }
+
+        function buildSeamlessQuadCoverPhotos() {
+            const T = BOOK.thickness;
+            const bevel = BOOK.bevel;
+
+            const coverConfigs = [
+                { side: 'front', x: 1.25, y: 2.05, z: T + bevel + 0.02, rotZ: -0.10, rotY: 0 },
+                { side: 'front', x: 3.35, y: 2.05, z: T + bevel + 0.02, rotZ: 0.12, rotY: 0 },
+                { side: 'front', x: 1.25, y: -2.05, z: T + bevel + 0.02, rotZ: 0.08, rotY: 0 },
+                { side: 'front', x: 3.35, y: -2.05, z: T + bevel + 0.02, rotZ: -0.10, rotY: 0 },
+
+                { side: 'back', x: 1.25, y: 2.05, z: -T - bevel - 0.02, rotZ: -0.12, rotY: Math.PI },
+                { side: 'back', x: 3.35, y: 2.05, z: -T - bevel - 0.02, rotZ: 0.14, rotY: Math.PI },
+                { side: 'back', x: 1.25, y: -2.05, z: -T - bevel - 0.02, rotZ: 0.10, rotY: Math.PI },
+                { side: 'back', x: 3.35, y: -2.05, z: -T - bevel - 0.02, rotZ: -0.12, rotY: Math.PI }
+            ];
+
+            for (let i = 0; i < TOTAL_PHOTO_COUNT; i++) {
+                const tex = createFramelessPhotoTexture(i);
+                const cardMesh = createPhotoCardMesh(tex, 1.10, 1.45);
+                const isCoverPhoto = (i < COVER_PHOTO_COUNT);
+
+                let anchor = null;
+                if (isCoverPhoto) {
+                    const cfg = coverConfigs[i];
+                    const hinge = (cfg.side === 'front') ? rightCoverHinge : leftCoverHinge;
+                    anchor = new THREE.Object3D();
+                    anchor.position.set(cfg.x, cfg.y, cfg.z);
+                    anchor.rotation.set(0, cfg.rotY, cfg.rotZ);
+                    hinge.add(anchor);
+                }
+
+                const theta = (i / TOTAL_PHOTO_COUNT) * Math.PI * 2;
+                const rGalaxy = 6.8 + (i % 3) * 1.5;
+                const phi = ((i % 5) - 2) * 0.32;
+
+                cardMesh.userData = {
+                    index: i,
+                    isPhoto: true,
+                    isCoverPhoto: isCoverPhoto,
+                    anchor: anchor,
+                    galaxyPos: new THREE.Vector3(rGalaxy * Math.cos(theta), phi * 3.6, rGalaxy * Math.sin(theta)),
+                    targetPos: new THREE.Vector3(),
+                    orbitAngle: theta,
+                    orbitRadius: rGalaxy,
+                    orbitSpeed: 0.08 + (i % 3) * 0.04
+                };
+
+                scene.add(cardMesh);
+                allPhotoCards.push(cardMesh);
+            }
+        }
+
+        function createChibiStethoscope() {
+            const group = new THREE.Group();
+            const metalMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
+            const tubeMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, roughness: 0.4 });
+            const chestMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.2 });
+
+            const diaphragm = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.05, 16), metalMat);
+            diaphragm.rotation.x = Math.PI / 2;
+            group.add(diaphragm);
+
+            const innerDiaphragm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.055, 16), chestMat);
+            innerDiaphragm.rotation.x = Math.PI / 2;
+            group.add(innerDiaphragm);
+
+            const uTube = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 8, 16, Math.PI * 1.3), tubeMat);
+            uTube.position.set(0, 0.22, 0);
+            uTube.rotation.z = -Math.PI / 3;
+            group.add(uTube);
+
+            const earpieceArch = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.025, 8, 16, Math.PI), metalMat);
+            earpieceArch.position.set(0.1, 0.48, 0);
+            earpieceArch.rotation.z = Math.PI;
+            group.add(earpieceArch);
+
+            const tipL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), tubeMat);
+            tipL.position.set(-0.08, 0.48, 0);
+            const tipR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), tubeMat);
+            tipR.position.set(0.28, 0.48, 0);
+            group.add(tipL, tipR);
+
+            group.scale.setScalar(0.85);
+            return group;
+        }
+
+        function createChibiLabCoat() {
+            const group = new THREE.Group();
+            const coatMat = new THREE.MeshStandardMaterial({ color: 0xf4faff, roughness: 0.35 });
+            const collarMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+            const pinkDetailMat = new THREE.MeshStandardMaterial({ color: 0xff2d8d, roughness: 0.3 });
+            const buttonMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, metalness: 0.5 });
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.62, 0.16), coatMat);
+            group.add(body);
+
+            const lapelL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.04), collarMat);
+            lapelL.position.set(-0.12, 0.22, 0.09);
+            lapelL.rotation.z = 0.35;
+            const lapelR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.04), collarMat);
+            lapelR.position.set(0.12, 0.22, 0.09);
+            lapelR.rotation.z = -0.35;
+            group.add(lapelL, lapelR);
+
+            const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.02), collarMat);
+            pocket.position.set(-0.14, 0.05, 0.09);
+            group.add(pocket);
+
+            const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 0.025), pinkDetailMat);
+            crossH.position.set(-0.14, 0.05, 0.105);
+            const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.08, 0.025), pinkDetailMat);
+            crossV.position.set(-0.14, 0.05, 0.105);
+            group.add(crossH, crossV);
+
+            for (let i = 0; i < 3; i++) {
+                const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.02, 8), buttonMat);
+                btn.rotation.x = Math.PI / 2;
+                btn.position.set(0, -0.05 - i * 0.12, 0.09);
+                group.add(btn);
+            }
+
+            const sleeveL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.38, 8), coatMat);
+            sleeveL.position.set(-0.31, 0.1, 0);
+            sleeveL.rotation.z = 0.45;
+            const sleeveR = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.38, 8), coatMat);
+            sleeveR.position.set(0.31, 0.1, 0);
+            sleeveR.rotation.z = -0.45;
+            group.add(sleeveL, sleeveR);
+
+            group.scale.setScalar(0.85);
+            return group;
+        }
+
+        function createChibiTestTubeRack() {
+            const group = new THREE.Group();
+            const rackMat = new THREE.MeshStandardMaterial({ color: 0xe0f7fa, roughness: 0.4 });
+            const glassMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff, transmission: 0.95, roughness: 0.05, ior: 1.5, thickness: 0.5
+            });
+            const corkMat = new THREE.MeshStandardMaterial({ color: 0xb57038, roughness: 0.8 });
+
+            const base = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.05, 0.22), rackMat);
+            base.position.y = -0.18;
+            const topBar = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.05, 0.22), rackMat);
+            topBar.position.y = 0.06;
+            const pillarL = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.26, 8), rackMat);
+            pillarL.position.set(-0.28, -0.06, 0);
+            const pillarR = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.26, 8), rackMat);
+            pillarR.position.set(0.28, -0.06, 0);
+            group.add(base, topBar, pillarL, pillarR);
+
+            const colors = [0x00f2fe, 0xff2d8d, 0x00ff66];
+            for (let i = 0; i < 3; i++) {
+                const tubeGroup = new THREE.Group();
+                tubeGroup.position.set(-0.18 + i * 0.18, 0, 0);
+
+                const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.38, 12), glassMat);
+                const roundBottom = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 12), glassMat);
+                roundBottom.position.y = -0.19;
+
+                const liqMat = new THREE.MeshStandardMaterial({
+                    color: colors[i], emissive: colors[i], emissiveIntensity: 0.8, roughness: 0.1
+                });
+                const liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.22, 16), liqMat);
+                liquid.position.y = -0.08;
+
+                const cork = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.042, 0.06, 8), corkMat);
+                cork.position.y = 0.21;
+
+                tubeGroup.add(glass, roundBottom, liquid, cork);
+                group.add(tubeGroup);
+            }
+
+            group.scale.setScalar(0.85);
+            return group;
+        }
+
+        function createChibiMicroscope() {
+            const group = new THREE.Group();
+            const matMint = new THREE.MeshStandardMaterial({ color: 0x00e5ff, roughness: 0.2, metalness: 0.1 });
+            const matPink = new THREE.MeshStandardMaterial({ color: 0xff2d8d, roughness: 0.3, metalness: 0.2 });
+            const matMetal = new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.15, metalness: 0.9 });
+            const matBlack = new THREE.MeshStandardMaterial({ color: 0x111116, roughness: 0.5 });
+
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.08, 12), matMint);
+            group.add(base);
+
+            const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.55, 8), matMint);
+            arm.position.set(-0.1, 0.28, 0);
+            arm.rotation.z = -0.25;
+            group.add(arm);
+
+            const stage = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.04, 0.28), matBlack);
+            stage.position.set(0.04, 0.24, 0);
+            group.add(stage);
+
+            const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.38, 12), matPink);
+            tube.position.set(0.05, 0.46, 0);
+            tube.rotation.z = 0.25;
+            group.add(tube);
+
+            const eyepiece = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.14, 12), matMetal);
+            eyepiece.position.set(0.1, 0.64, 0);
+            eyepiece.rotation.z = 0.25;
+            group.add(eyepiece);
+
+            group.scale.setScalar(0.75);
+            return group;
+        }
+
+        function createChibiMagnifyingGlass() {
+            const group = new THREE.Group();
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.85, roughness: 0.2 });
+            const glassMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff, transmission: 0.98, roughness: 0.02, ior: 2.0, thickness: 1.2
+            });
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, roughness: 0.3 });
+
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 8, 16), goldMat);
+            group.add(rim);
+
+            const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.02, 16), glassMat);
+            lens.rotation.x = Math.PI / 2;
+            group.add(lens);
+
+            const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.048, 0.42, 8), handleMat);
+            handle.position.set(0.25, -0.25, 0);
+            handle.rotation.z = Math.PI / 4;
+            group.add(handle);
+
+            group.scale.setScalar(0.75);
+            return group;
+        }
+
+        function createChibiNotebook() {
+            const group = new THREE.Group();
+            const coverMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, roughness: 0.35 });
+            const pageMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+            const bookmarkMat = new THREE.MeshStandardMaterial({ color: 0xff2d8d, roughness: 0.2 });
+
+            const book = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.55, 0.08), coverMat);
+            group.add(book);
+
+            const pages = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.51, 0.06), pageMat);
+            pages.position.x = 0.03;
+            group.add(pages);
+
+            const bookmark = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.02), bookmarkMat);
+            bookmark.position.set(0.08, -0.26, 0.04);
+            group.add(bookmark);
+
+            group.scale.setScalar(0.75);
+            return group;
+        }
+
+        function buildMedicalAndScienceChibiProps() {
+            const T = BOOK.thickness;
+            const bevel = BOOK.bevel;
+
+            const propsConfigs = [
+                { create: createChibiMicroscope, side: 'front', x: 0.95, y: 0.15, z: T + bevel + 0.12, rotY: 0, rotZ: 0.15 },
+                { create: createChibiStethoscope, side: 'front', x: 3.65, y: 0.15, z: T + bevel + 0.12, rotY: 0, rotZ: -0.2 },
+                { create: createChibiLabCoat, side: 'front', x: 2.3, y: 2.45, z: T + bevel + 0.12, rotY: 0, rotZ: 0.0 },
+                { create: createChibiTestTubeRack, side: 'front', x: 2.3, y: -2.5, z: T + bevel + 0.12, rotY: 0, rotZ: 0.0 },
+
+                { create: createChibiMagnifyingGlass, side: 'back', x: 1.2, y: 0.0, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: -0.3 },
+                { create: createChibiNotebook, side: 'back', x: 3.4, y: 0.0, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: 0.2 },
+                { create: createChibiStethoscope, side: 'back', x: 2.3, y: 2.4, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: 0.1 },
+                { create: createChibiLabCoat, side: 'back', x: 2.3, y: -2.4, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: -0.8 }
+            ];
+
+            propsConfigs.forEach((cfg, idx) => {
+                const mesh = cfg.create();
+                const hinge = (cfg.side === 'front') ? rightCoverHinge : leftCoverHinge;
+
+                const anchor = new THREE.Object3D();
+                anchor.position.set(cfg.x, cfg.y, cfg.z);
+                anchor.rotation.set(0, cfg.rotY, cfg.rotZ);
+                hinge.add(anchor);
+
+                const theta = (idx / propsConfigs.length) * Math.PI * 2 + 0.3;
+                const rGalaxy = 5.2 + (idx % 3) * 1.8;
+                const phi = ((idx % 4) - 1.5) * 0.4;
+
+                mesh.userData = {
+                    isProp: true,
+                    anchor: anchor,
+                    galaxyPos: new THREE.Vector3(rGalaxy * Math.cos(theta), phi * 3.2, rGalaxy * Math.sin(theta)),
+                    targetPos: new THREE.Vector3(),
+                    orbitAngle: theta,
+                    orbitRadius: rGalaxy,
+                    orbitSpeed: 0.09 + (idx % 2) * 0.04,
+                    rotSpeedX: 0.6 + Math.random() * 0.6,
+                    rotSpeedY: 0.8 + Math.random() * 0.6
+                };
+
+                scene.add(mesh);
+                chibiProps.push(mesh);
+            });
+        }
+
+        function setupInteractions() {
+            fsmButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const s = parseInt(e.currentTarget.getAttribute('data-state'));
+                    FSM.setTarget(s);
+                });
+            });
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            window.addEventListener('pointerdown', onPointerDown);
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight' || e.key === ' ') {
+                    nextPhoto();
+                } else if (e.key === 'ArrowLeft') {
+                    prevPhoto();
+                } else if (e.key === 'Escape') {
+                    if (FSM.currentState === STATES.FOCUS_PHOTO) {
+                        FSM.setTarget(STATES.GALAXY_BURST);
+                    }
+                }
+            });
+        }
+
+        function onPointerDown(e) {
+            if (e.target?.closest?.('#fsm-ui') || e.target?.closest?.('#ai-hud')) return;
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            if (FSM.currentState === STATES.GALAXY_BURST || FSM.currentState === STATES.FOCUS_PHOTO) {
+                const intersects = raycaster.intersectObjects(allPhotoCards, true);
+
+                if (intersects.length > 0) {
+                    let top = intersects[0].object;
+                    while (top.parent && !top.userData.isPhoto) top = top.parent;
+                    if (top.userData.isPhoto) {
+                        FSM.setTarget(STATES.FOCUS_PHOTO, top.userData.index);
+                        return;
+                    }
+                } else if (FSM.currentState === STATES.FOCUS_PHOTO) {
+                    FSM.setTarget(STATES.GALAXY_BURST);
+                }
+            } else if (FSM.currentState === STATES.BOOK_AJAR) {
+                FSM.setTarget(STATES.GALAXY_BURST);
+            }
+        }
+
+        async function setupMediaPipeAI() {
+            try {
+                aiStatus.textContent = "NẠP AI GESTURE...";
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm"
+                );
+
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
+
+                aiStatus.textContent = "AI SẴN SÀNG";
+            } catch (err) {
+                aiStatus.textContent = "LỖI NẠP AI";
+            }
+        }
+
+        toggleCamBtn.addEventListener('click', async () => {
+            if (!handLandmarker) await setupMediaPipeAI();
+
+            if (!webcamRunning) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 320, height: 240, frameRate: { ideal: 30 } }
+                    });
+                    webcamElement.srcObject = stream;
+                    webcamElement.addEventListener("loadeddata", () => {
+                        webcamElement.play();
+                        webcamRunning = true;
+                        toggleCamBtn.textContent = "TẮT CAMERA AI";
+                        aiStatus.textContent = "AI ĐANG QUAN SÁT";
+                        aiDot.style.background = "#00ff66";
+                    });
+                } catch (e) {
+                    aiStatus.textContent = "TỪ CHỐI CAMERA";
+                }
+            } else {
+                const stream = webcamElement.srcObject;
+                if (stream) {
+                    stream.getTracks().forEach(t => t.stop());
+                }
+                webcamRunning = false;
+                toggleCamBtn.textContent = "BẬT CAMERA AI";
+                aiStatus.textContent = "CAMERA ĐÃ TẮT";
+                handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+            }
+        });
+
+        function processHandGesturesAsync() {
+            if (!webcamRunning || !handLandmarker || isProcessingAI) return;
+            if (webcamElement.readyState < 2) return;
+
+            if (webcamElement.currentTime !== lastVideoTime) {
+                lastVideoTime = webcamElement.currentTime;
+                isProcessingAI = true;
+
+                try {
+                    const results = handLandmarker.detectForVideo(webcamElement, performance.now());
+                    
+                    if (handCanvas.width !== 320 || handCanvas.height !== 240) {
+                        handCanvas.width = 320;
+                        handCanvas.height = 240;
+                    }
+                    handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+                    if (results.landmarks && results.landmarks.length > 0) {
+                        const lm = results.landmarks[0];
+                        drawNeonHandPiP(lm);
+                        interpretGestureMapping(lm);
+                    } else {
+                        STATE.hand.detected = false;
+                        fingerGestureActive = false;
+                        prevIndexTipY = null;
+                        aiStatus.textContent = "TÌM BÀN TAY...";
+                    }
+                } catch(err) {
+                    console.warn("AI Frame Skip:", err);
+                } finally {
+                    isProcessingAI = false;
+                }
+            }
+        }
+
+        function drawNeonHandPiP(lm) {
+            const w = handCanvas.width;
+            const h = handCanvas.height;
+
+            const conns = [
+                [0,1],[1,2],[2,3],[3,4],
+                [0,5],[5,6],[6,7],[7,8],
+                [5,9],[9,10],[10,11],[11,12],
+                [9,13],[13,14],[14,15],[15,16],
+                [13,17],[17,18],[18,19],[19,20],
+                [0,17]
+            ];
+
+            handCtx.strokeStyle = '#00ff66';
+            handCtx.lineWidth = 2.5;
+            handCtx.shadowColor = '#00ff66';
+            handCtx.shadowBlur = 8;
+
+            conns.forEach(([a, b]) => {
+                handCtx.beginPath();
+                handCtx.moveTo(lm[a].x * w, lm[a].y * h);
+                handCtx.lineTo(lm[b].x * w, lm[b].y * h);
+                handCtx.stroke();
+            });
+
+            handCtx.fillStyle = '#ffffff';
+            lm.forEach((pt, i) => {
+                handCtx.beginPath();
+                handCtx.arc(pt.x * w, pt.y * h, (i === 4 || i === 8) ? 4.5 : 2.5, 0, Math.PI * 2);
+                handCtx.fill();
+            });
+        }
+
+        function triggerPhotoGrab() {
+            let closestIdx = -1;
+            let minScreenDist = Infinity;
+
+            allPhotoCards.forEach((card, idx) => {
+                card.getWorldPosition(_v1);
+                _v1.project(camera);
+                if (_v1.z < 1.0) {
+                    const d = Math.hypot(_v1.x, _v1.y);
+                    if (d < 0.85 && d < minScreenDist) {
+                        minScreenDist = d;
+                        closestIdx = idx;
+                    }
+                }
+            });
+
+            if (closestIdx >= 0) {
+                FSM.setTarget(STATES.FOCUS_PHOTO, closestIdx);
+            } else {
+                FSM.setTarget(STATES.FOCUS_PHOTO, selectedPhotoIndex);
+            }
+        }
+        window.triggerPhotoGrab = triggerPhotoGrab;
+
+        function interpretGestureMapping(lm) {
+            STATE.hand.detected = true;
+            const wrist = lm[0];
+            const thumbTip = lm[4];
+            const indexTip = lm[8];
+            const middleTip = lm[12];
+            const ringTip = lm[16];
+            const pinkyTip = lm[20];
+            const middleMCP = lm[9];
+
+            // Tọa độ tay chuẩn hóa [-1, 1] phục vụ Hand Steering
+            STATE.hand.x = (middleMCP.x - 0.5) * 2.0;
+            STATE.hand.y = (middleMCP.y - 0.5) * 2.0;
+
+            const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+            const openDist = Math.hypot(middleTip.x - wrist.x, middleTip.y - wrist.y);
+
+            const isPinch = pinchDist < 0.055;
+            const isOpen = openDist > 0.38;
+            const isFist = openDist < 0.18 && !isPinch;
+
+            const indexUp = indexTip.y < lm[6].y - 0.03;
+            const middleUp = middleTip.y < lm[10].y - 0.03;
+            const ringUp = ringTip.y < lm[14].y - 0.02;
+            const pinkyUp = pinkyTip.y < lm[18].y - 0.02;
+
+            const isOneFinger = indexUp && !middleUp && !ringUp && !pinkyUp;
+            const isTwoFingers = indexUp && middleUp && !ringUp && !pinkyUp;
+
+            const now = performance.now();
+
+            if (FSM.currentState === STATES.FOCUS_PHOTO) {
+                if (isOpen) {
+                    aiStatus.textContent = "XÒE TAY: QUAY LẠI GALAXY";
+                    FSM.setTarget(STATES.GALAXY_BURST);
+                    fingerGestureActive = false;
+                    prevIndexTipY = null;
+                    gestureDebounceTimer = now;
+                    return;
+                } else if (isFist) {
+                    aiStatus.textContent = "NẮM TAY: THU VỀ SÁCH";
+                    FSM.setTarget(STATES.BOOK_AJAR);
+                    fingerGestureActive = false;
+                    prevIndexTipY = null;
+                    gestureDebounceTimer = now;
+                    return;
+                } else if (isOneFinger || isTwoFingers) {
+                    const currentY = indexTip.y;
+                    let moved = prevIndexTipY !== null && Math.abs(currentY - prevIndexTipY) > 0.035;
+                    if ((!fingerGestureActive || moved) && (now - swipeDebounceTimer > 450)) {
+                        if (prevIndexTipY !== null && currentY < prevIndexTipY - 0.035) {
+                            nextPhoto();
+                            aiStatus.textContent = "VUỐT LÊN: ẢNH TIẾP";
+                        } else if (prevIndexTipY !== null && currentY > prevIndexTipY + 0.035) {
+                            prevPhoto();
+                            aiStatus.textContent = "VUỐT XUỐNG: ẢNH TRƯỚC";
+                        } else {
+                            nextPhoto();
+                            aiStatus.textContent = "CHỈ TAY: ĐỔI ẢNH";
+                        }
+                        swipeDebounceTimer = now;
+                    }
+                    fingerGestureActive = true;
+                    prevIndexTipY = currentY;
+                } else {
+                    fingerGestureActive = false;
+                    prevIndexTipY = null;
+                }
+            } else {
+                fingerGestureActive = false;
+                prevIndexTipY = null;
+
+                if (isPinch) {
+                    if (now - gestureDebounceTimer > 750) {
+                        aiStatus.textContent = "CHÚM TAY: BẮT ẢNH";
+                        triggerPhotoGrab();
+                        gestureDebounceTimer = now;
+                    }
+                } else if (isOpen) {
+                    if (FSM.targetState === STATES.BOOK_AJAR && (now - gestureDebounceTimer > 750)) {
+                        aiStatus.textContent = "XÒE TAY: BUNG TINH CẦU";
+                        FSM.setTarget(STATES.GALAXY_BURST);
+                        gestureDebounceTimer = now;
+                    }
+                } else if (isFist) {
+                    if (FSM.targetState !== STATES.BOOK_AJAR && (now - gestureDebounceTimer > 750)) {
+                        aiStatus.textContent = "NẮM TAY: THU VỀ SÁCH";
+                        FSM.setTarget(STATES.BOOK_AJAR);
+                        gestureDebounceTimer = now;
+                    }
+                }
+            }
+        }
+
+        // ====================================================================
+        // 11. CHOREOGRAPHY ANIMATION LOOP
+        // ====================================================================
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            processHandGesturesAsync();
+
+            // HAND STEERING (Từ demo4): Di chuyển tay lệch tâm để xoay mô hình theo hướng đó
+            if (STATE.hand.detected && webcamRunning) {
+                const th = 0.20; // Deadzone
+                const s = 1.4;   // Tốc độ xoay
+                if (STATE.hand.x > th) modelRotation.y -= s * dt * (STATE.hand.x - th);
+                else if (STATE.hand.x < -th) modelRotation.y -= s * dt * (STATE.hand.x + th);
+
+                if (STATE.hand.y < -th) modelRotation.x += s * dt * (-STATE.hand.y - th);
+                else if (STATE.hand.y > th) modelRotation.x -= s * dt * (STATE.hand.y - th);
+
+                modelRotation.x = THREE.MathUtils.clamp(modelRotation.x, -0.6, 0.8);
+            } else {
+                if (FSM.targetState === STATES.BOOK_AJAR) {
+                    modelRotation.x = THREE.MathUtils.lerp(modelRotation.x, 0.18, dt * 2.0);
+                    modelRotation.y += 0.06 * dt; // Quay nhẹ ngắm sách mở hờ
+                } else if (FSM.targetState === STATES.GALAXY_BURST) {
+                    modelRotation.y += 0.12 * dt; // Tinh cầu tự quay êm dịu
+                }
+            }
+
+            albumRoot.rotation.x = THREE.MathUtils.lerp(albumRoot.rotation.x, modelRotation.x, dt * 4.0);
+            albumRoot.rotation.y = THREE.MathUtils.lerp(albumRoot.rotation.y, modelRotation.y, dt * 4.0);
+
+            controls.update();
+            FSM.update(dt);
+
+            let targetOpen = 0.0;
+            let targetBurst = 0.0;
+            let targetGalaxy = 0.0;
+            let targetMeshOpac = 1.0;
+            let targetFocusDim = 1.0;
+
+            const cur = FSM.targetState;
+
+            if (cur === STATES.BOOK_AJAR) {
+                targetOpen = 0.0; targetBurst = 0.0; targetGalaxy = 0.0; targetMeshOpac = 1.0;
+                targetCameraDistance = 18.5; // Sách mở hờ: camera gần lại ấm áp
+            } else if (cur === STATES.GALAXY_BURST) {
+                // 3 TRONG 1: Mở 160 độ, bung sáng, tạo tinh cầu đặc đồng thời
+                targetOpen = 1.0; targetBurst = 1.0; targetGalaxy = 1.0; targetMeshOpac = 0.0;
+                targetCameraDistance = 24.5; // Lùi xa 40% mở rộng tầm nhìn toàn cảnh
+            } else if (cur === STATES.FOCUS_PHOTO) {
+                targetOpen = 1.0; targetBurst = 1.0; targetGalaxy = 1.0; targetMeshOpac = 0.0;
+                targetFocusDim = 0.60;
+                targetCameraDistance = 22.0;
+            }
+
+            // BIÊN ĐẠO CAMERA ĐỘNG
+            if (Number.isFinite(targetCameraDistance)) {
+                const diff = _v1.subVectors(camera.position, controls.target);
+                if (diff.lengthSq() > 0.001) {
+                    const camDir = diff.normalize();
+                    const currentDist = camera.position.distanceTo(controls.target);
+                    const smoothDist = THREE.MathUtils.lerp(currentDist, targetCameraDistance, dt * 2.2);
+                    if (Number.isFinite(smoothDist)) {
+                        camera.position.copy(controls.target).addScaledVector(camDir, smoothDist);
+                    }
+                }
+            }
+
+            // Interpolation các thông số FSM
+            FSM.openProgressLerp = THREE.MathUtils.lerp(FSM.openProgressLerp, targetOpen, dt * 3.0);
+            FSM.burstProgressLerp = THREE.MathUtils.lerp(FSM.burstProgressLerp, targetBurst, dt * 3.0);
+            FSM.galaxyProgressLerp = THREE.MathUtils.lerp(FSM.galaxyProgressLerp, targetGalaxy, dt * 2.8);
+            FSM.bookMeshOpacityLerp = THREE.MathUtils.lerp(FSM.bookMeshOpacityLerp, targetMeshOpac, dt * 3.2);
+
+            // Góc mở sách: từ 30 độ (mở hờ) sang 160 độ (mở bung)
+            const openRad = THREE.MathUtils.lerp(BOOK.ajarAngleRad / 2, BOOK.maxOpenRad / 2, FSM.openProgressLerp);
+            leftCoverHinge.rotation.y = openRad;
+            rightCoverHinge.rotation.y = -openRad;
+
+            chibiCoverMat.opacity = FSM.bookMeshOpacityLerp;
+            spineMesh.visible = FSM.bookMeshOpacityLerp > 0.01;
+
+            if (titleMesh) {
+                titleMesh.material.opacity = FSM.bookMeshOpacityLerp;
+                titleMesh.visible = FSM.bookMeshOpacityLerp > 0.01;
+            }
+            if (contourLineMesh) {
+                contourLineMesh.material.opacity = FSM.bookMeshOpacityLerp;
+                contourLineMesh.visible = FSM.bookMeshOpacityLerp > 0.01;
+            }
+
+            albumRoot.position.y = Math.sin(elapsed * 0.8) * 0.08;
+
+            if (innerSparksLight) {
+                innerSparksLight.intensity = (0.5 + FSM.openProgressLerp * 5.5) * FSM.bookMeshOpacityLerp;
+            }
+
+            FSM.galaxyRotAngle += 0.16 * dt;
+
+            if (morphShaderMat) {
+                morphShaderMat.uniforms.uOpenRatio.value = FSM.openProgressLerp;
+                morphShaderMat.uniforms.uBurstRatio.value = FSM.burstProgressLerp;
+                morphShaderMat.uniforms.uGalaxyRatio.value = FSM.galaxyProgressLerp;
+                morphShaderMat.uniforms.uVibrate.value = FSM.vibrateIntensity;
+                morphShaderMat.uniforms.uTime.value = elapsed;
+                morphShaderMat.uniforms.uGalaxyRot.value = FSM.galaxyRotAngle;
+                morphShaderMat.uniforms.uFocusDim.value = THREE.MathUtils.lerp(
+                    morphShaderMat.uniforms.uFocusDim.value, targetFocusDim, dt * 5.0
+                );
+            }
+
+            if (flareShaderMat) {
+                flareShaderMat.uniforms.uTime.value = elapsed;
+                flareShaderMat.uniforms.uGalaxyRatio.value = FSM.galaxyProgressLerp;
+                flareShaderMat.uniforms.uFocusDim.value = THREE.MathUtils.lerp(
+                    flareShaderMat.uniforms.uFocusDim.value, targetFocusDim, dt * 5.0
+                );
+            }
+
+            heroGiantHearts.forEach((h, idx) => {
+                h.angle += h.speed * dt * (cur === STATES.FOCUS_PHOTO ? 0.3 : 1.0);
+                const expand = THREE.MathUtils.lerp(1.0, 1.85, FSM.galaxyProgressLerp);
+                const r = h.baseRad * expand;
+
+                h.mesh.position.x = Math.cos(h.angle) * r;
+                h.mesh.position.z = Math.sin(h.angle) * r;
+                h.mesh.position.y = Math.sin(elapsed * 1.2 + idx) * 1.2 + Math.sin(h.inclination) * (r * 0.5);
+
+                h.mesh.rotation.x += 0.8 * dt;
+                h.mesh.rotation.y += 1.0 * dt;
+
+                const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.85 : (0.8 + FSM.galaxyProgressLerp * 0.85);
+                h.mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), dt * 4.0);
+            });
+
+            const updateStarGroup = (group) => {
+                group.forEach(st => {
+                    st.theta += st.speed * dt * (cur === STATES.FOCUS_PHOTO ? 0.3 : 1.0);
+                    const expand = THREE.MathUtils.lerp(0.8, 1.5, FSM.galaxyProgressLerp);
+                    const curR = st.rad * expand;
+
+                    st.mesh.position.x = curR * Math.sin(st.phi) * Math.cos(st.theta);
+                    st.mesh.position.y = curR * Math.sin(st.phi) * Math.sin(st.theta) * 0.9;
+                    st.mesh.position.z = curR * Math.cos(st.phi);
+
+                    st.mesh.rotation.x += st.rotSpeedX * dt;
+                    st.mesh.rotation.y += st.rotSpeedY * dt;
+
+                    // Kích thước ngôi sao theo bán kính (Radial Sizing)
+                    const rFactor = THREE.MathUtils.clamp(curR / 18.0, 0.0, 1.0);
+                    const starRadialScale = 1.5 - 0.7 * rFactor;
+                    const pulse = 1.0 + 0.35 * Math.sin(elapsed * 3.5 + st.pulsePhase);
+                    st.mesh.scale.setScalar((cur === STATES.FOCUS_PHOTO ? 0.55 : 0.8) * pulse * starRadialScale);
+                });
+            };
+
+            updateStarGroup(stars3Point);
+            updateStarGroup(stars4Point);
+            updateStarGroup(stars5Point);
+
+            // CẬP NHẬT TOÀN BỘ THẺ ẢNH (CHUYỂN ĐỘNG SIÊU MƯỢT, ZERO JUMP, OUTWARD-FACING)
+            allPhotoCards.forEach((card, idx) => {
+                const u = card.userData;
+                const isSelected = (cur === STATES.FOCUS_PHOTO && idx === selectedPhotoIndex);
+
+                // Tọa độ thế giới trong tinh cầu xoay
+                const curOrbitAngle = u.orbitAngle + FSM.galaxyRotAngle * (u.orbitSpeed * 2.5);
+                const ox = Math.cos(curOrbitAngle) * u.orbitRadius;
+                const oz = Math.sin(curOrbitAngle) * u.orbitRadius;
+                const oy = u.galaxyPos.y + Math.sin(elapsed * 1.5 + idx * 0.7) * 0.35;
+                const galaxyWorldPos = _v2.set(ox, oy, oz);
+
+                // Hướng mặt trước (+Z) nhìn ra ngoài tâm tinh cầu
+                _m1.lookAt(_v3.set(0, oy * 0.2, 0), galaxyWorldPos, THREE.Object3D.DEFAULT_UP);
+                const galaxyWorldQuat = _q1.setFromRotationMatrix(_m1);
+
+                let bookWorldPos = _v3;
+                let bookWorldQuat = _q2;
+
+                if (u.isCoverPhoto && u.anchor) {
+                    u.anchor.getWorldPosition(bookWorldPos);
+                    u.anchor.getWorldQuaternion(bookWorldQuat);
+                } else {
+                    // 4 ảnh phụ khi sách mở hờ nằm nhẹ nhàng giữa các trang phát sáng
+                    const pageSlot = idx % BOOK.pageCount;
+                    const ajarPageAng = THREE.MathUtils.lerp(-BOOK.ajarAngleRad / 2, BOOK.ajarAngleRad / 2, (pageSlot + 1) / (BOOK.pageCount + 1));
+                    bookWorldPos.set(2.2 * Math.cos(ajarPageAng), -0.5 + (idx % 2) * 1.0, 2.2 * Math.sin(ajarPageAng));
+                    bookWorldQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), ajarPageAng);
+                }
+
+                const tMorph = THREE.MathUtils.smoothstep(FSM.galaxyProgressLerp, 0.0, 1.0);
+
+                if (isSelected) {
+                    card.visible = true;
+                    const camDir = _v1;
+                    camera.getWorldDirection(camDir);
+                    u.targetPos.copy(camera.position).addScaledVector(camDir, 5.5);
+
+                    card.position.lerp(u.targetPos, dt * 5.5);
+                    card.quaternion.slerp(camera.quaternion, dt * 6.5);
+                    card.scale.lerp(new THREE.Vector3(1.35, 1.35, 1.35), dt * 6.0);
+                } else {
+                    card.visible = true;
+                    u.targetPos.lerpVectors(bookWorldPos, galaxyWorldPos, tMorph);
+                    card.position.lerp(u.targetPos, dt * 6.0);
+
+                    _q2.slerpQuaternions(bookWorldQuat, galaxyWorldQuat, tMorph);
+                    card.quaternion.slerp(_q2, dt * 6.0);
+
+                    const baseScale = u.isCoverPhoto ? 1.0 : (0.1 + tMorph * 0.9);
+                    const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.55 : (baseScale * (0.85 + 0.15 * tMorph));
+                    card.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), dt * 6.0);
+                }
+            });
+
+            // CẬP NHẬT CHIBI PROPS (Y KHOA)
+            chibiProps.forEach((prop, idx) => {
+                const u = prop.userData;
+
+                u.anchor.getWorldPosition(_v3);
+                u.anchor.getWorldQuaternion(_q2);
+
+                const curOrbitAngle = u.orbitAngle + FSM.galaxyRotAngle * (u.orbitSpeed * 2.2);
+                const ox = Math.cos(curOrbitAngle) * u.orbitRadius;
+                const oz = Math.sin(curOrbitAngle) * u.orbitRadius;
+                const oy = u.galaxyPos.y + Math.sin(elapsed * 1.4 + idx * 0.5) * 0.4;
+                const galaxyWorldPos = _v2.set(ox, oy, oz);
+
+                const tMorph = THREE.MathUtils.smoothstep(FSM.galaxyProgressLerp, 0.0, 1.0);
+                u.targetPos.lerpVectors(_v3, galaxyWorldPos, tMorph);
+                prop.position.lerp(u.targetPos, dt * 6.0);
+
+                prop.rotation.x += u.rotSpeedX * dt;
+                prop.rotation.y += u.rotSpeedY * dt;
+
+                const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.55 : (0.75 + tMorph * 0.25);
+                prop.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), dt * 4.0);
+            });
+
+            composer.render();
+        }
+    </script>
+</body>
+</html>
