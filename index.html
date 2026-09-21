@@ -714,23 +714,24 @@
             position: absolute;
             top: 6px;
             right: 6px;
-            width: 24px;
-            height: 24px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
-            background: rgba(255, 20, 70, 0.85);
-            border: none;
+            background: rgba(255, 20, 70, 0.90);
+            border: 1.5px solid rgba(255, 255, 255, 0.6);
             color: #fff;
-            font-size: 11px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-            transition: transform 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 10px rgba(255, 20, 70, 0.6);
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 10;
         }
         .grid-del-btn:hover {
-            transform: scale(1.2);
+            transform: scale(1.22);
             background: #ff0033;
+            box-shadow: 0 4px 14px rgba(255, 0, 51, 0.85);
         }
         .photo-modal-footer {
             display: flex;
@@ -1171,7 +1172,7 @@
         <div class="brand-sub">PHÒNG THÍ NGHIỆM TRUNG TÂM</div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
             <button id="btn-photo-gallery" class="header-gallery-btn" onclick="openPhotoModal()" style="margin-top:0;">
-                🗂 Kho ảnh (<span id="photo-count-badge">324</span>)
+                🗂 Kho ảnh (<span id="photo-count-badge">255</span>)
             </button>
             <button id="btn-fullscreen" class="header-gallery-btn" onclick="toggleZenFullscreen()" style="margin-top:0;" title="Phóng to toàn màn hình (Zen Mode)">
                 ⛶ Toàn màn hình
@@ -1330,7 +1331,7 @@
                 </div>
             </div>
             <div class="dev-section">
-                <div class="dev-sec-title">📁 Nạp Thêm Tài Nguyên</div>
+                <div class="dev-sec-title">📁 Nạp & Quản Lý Tài Nguyên</div>
                 <div class="dev-btn-group">
                     <label class="dev-upload-btn">
                         ➕ Thêm ảnh
@@ -1340,6 +1341,10 @@
                         ➕ Thêm nhạc MP3
                         <input type="file" multiple accept="audio/mp3,audio/*" onchange="handleUserMusicUpload(event)" style="display:none;">
                     </label>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+                    <button class="dev-action-btn" onclick="openPhotoModal()" style="width:100%; padding:7px; font-size:11px; background:rgba(0,242,254,0.15); border:1px solid var(--neon-cyan); border-radius:12px; color:#fff; cursor:pointer;">🗑️ Mở Kho Ảnh Để Xóa</button>
+                    <button class="dev-action-btn" onclick="clearPhotoBlacklist()" style="width:100%; padding:6px; font-size:10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25); border-radius:12px; color:rgba(255,255,255,0.8); cursor:pointer;">🔄 Khôi Phục Toàn Bộ Ảnh Gốc Bị Xóa</button>
                 </div>
             </div>
         </div>
@@ -1383,11 +1388,11 @@
         const FLARE_COUNT = 360;
 
         const COVER_PHOTO_COUNT = 8;
-        const EXTRA_GALAXY_PHOTO_COUNT = 316;
-        const TOTAL_PHOTO_COUNT = COVER_PHOTO_COUNT + EXTRA_GALAXY_PHOTO_COUNT; // 324 ảnh kỉ niệm bay lơ lửng
+        const EXTRA_GALAXY_PHOTO_COUNT = 247;
+        let TOTAL_PHOTO_COUNT = 255; // 255 ảnh kỷ niệm thật (8 ảnh bìa + 247 ảnh lơ lửng)
 
-        let scene, camera, renderer, composer, controls;
-        let albumRoot, spineMesh;
+        let scene, camera, renderer, composer, controls, skydomeMesh;
+        let albumRoot, bookAssembly, spineMesh;
         let leftCoverHinge, rightCoverHinge;
         let chibiCoverMat, titleMesh, contourLineMesh;
         let innerSparksLight;
@@ -1402,10 +1407,12 @@
         let selectedPhotoIndex = 0;
 
         let crossFlareMesh, flareShaderMat;
+        let miniStardustMesh, miniStardustMat;
 
         let clock = new THREE.Clock();
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
+        let hoveredCardIndex = -1;
 
         // Scratch Objects Pool cho zero allocation trong hot loop animate()
         const _v1 = new THREE.Vector3();
@@ -1413,6 +1420,8 @@
         const _v3 = new THREE.Vector3();
         const _q1 = new THREE.Quaternion();
         const _q2 = new THREE.Quaternion();
+        const _q3 = new THREE.Quaternion();
+        const _upVec = new THREE.Vector3(0, 1, 0);
         const _m1 = new THREE.Matrix4();
 
         // ==========================================
@@ -1456,6 +1465,7 @@
             burstProgressLerp: 0.0,
             galaxyProgressLerp: 0.0,
             bookMeshOpacityLerp: 1.0,
+            skydomeDimLerp: 1.0,
             galaxyRotAngle: 0.0,
             vibrateIntensity: 0.0,
 
@@ -1520,12 +1530,16 @@
         };
 
         function nextPhoto() {
-            selectedPhotoIndex = (selectedPhotoIndex + 1) % TOTAL_PHOTO_COUNT;
+            const total = (allPhotoCards && allPhotoCards.length > 0) ? allPhotoCards.length : ((allPhotos && allPhotos.length > 0) ? allPhotos.length : TOTAL_PHOTO_COUNT);
+            if (total === 0) return;
+            selectedPhotoIndex = (selectedPhotoIndex + 1) % total;
             FSM.updateUI();
         }
 
         function prevPhoto() {
-            selectedPhotoIndex = (selectedPhotoIndex - 1 + TOTAL_PHOTO_COUNT) % TOTAL_PHOTO_COUNT;
+            const total = (allPhotoCards && allPhotoCards.length > 0) ? allPhotoCards.length : ((allPhotos && allPhotos.length > 0) ? allPhotos.length : TOTAL_PHOTO_COUNT);
+            if (total === 0) return;
+            selectedPhotoIndex = (selectedPhotoIndex - 1 + total) % total;
             FSM.updateUI();
         }
 
@@ -1538,7 +1552,7 @@
             set: (v) => { selectedPhotoIndex = v; }
         });
 
-        async function bootstrap() {
+        async function init() {
             try {
                 await document.fonts.load('700 80px "Fredoka"');
                 await document.fonts.load('700 40px "Montserrat"');
@@ -1548,17 +1562,49 @@
             initScene();
             window.scene = scene;
             window.camera = camera;
+            window.renderer = renderer;
             buildVibrantNebulaGalaxySky();
+            window.skydomeMesh = skydomeMesh;
             setupStudioLighting();
             buildPhysicallyAccurateBook();
             buildOptimizedParticleSystem();
             buildProportionalStarsAndHearts();
-            buildSeamlessQuadCoverPhotos();
-        initPhotoLibrary();
+            await initPhotoLibrary();
+            createAllPhotoCards();
             window.allPhotoCards = allPhotoCards;
             buildMedicalAndScienceChibiProps();
             buildCrossStarFlares();
+            buildDedicatedMiniStardustSwarm();
             setupInteractions();
+
+            // GPU Pre-warming Pipeline (ADR 0003 & Ticket 05)
+            // Tiền biên dịch toàn bộ Shader và Vật liệu trong VRAM GPU trước khi kết thúc "Đang lấy hồi ức..."
+            if (renderer && scene && camera) {
+                try {
+                    const invisibleObjects = [];
+                    scene.traverse((obj) => {
+                        if (obj.isMesh || obj.isPoints || obj.isLine) {
+                            if (!obj.visible) {
+                                invisibleObjects.push(obj);
+                                obj.visible = true;
+                            }
+                        }
+                    });
+
+                    renderer.compile(scene, camera);
+
+                    for (let i = 0; i < invisibleObjects.length; i++) {
+                        invisibleObjects[i].visible = false;
+                    }
+
+                    console.log('✨ [GPU Pre-warming] 100% Shader & Vật liệu đã được tiền biên dịch vào VRAM GPU.');
+                } catch (e) {
+                    console.warn('⚠️ [GPU Pre-warming] Error during compile:', e);
+                }
+            }
+
+            // Hoàn tất lấy hồi ức & GPU pre-warming -> chuyển sang ô nhập tên Cổng Bảo Mật
+            revealGatewayQuestion();
 
             const loader = document.getElementById('loading-screen');
             if (loader) {
@@ -1569,16 +1615,19 @@
             animate();
         }
 
-        window.addEventListener('DOMContentLoaded', bootstrap);
+        const bootstrap = init;
+        window.init = init;
+        window.bootstrap = bootstrap;
+        window.addEventListener('DOMContentLoaded', init);
 
         function initScene() {
             const container = document.getElementById('canvas-container');
 
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x02030a);
-            scene.fog = new THREE.FogExp2(0x03040e, 0.006);
+            scene.background = new THREE.Color(0x0b0c26);
+            scene.fog = new THREE.FogExp2(0x0b0c26, 0.006);
 
-            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 3.6, 24.5); // Đẩy lùi mặc định 40% (17.0 * 1.44 = 24.5)
 
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -1610,51 +1659,509 @@
 
         function buildVibrantNebulaGalaxySky() {
             const cvs = document.createElement('canvas');
-            cvs.width = 1024; cvs.height = 512;
+            const W = 4096;
+            const H = 2048;
+            cvs.width = W;
+            cvs.height = H;
             const ctx = cvs.getContext('2d');
+            const scaleX = W / 2048;
+            const scaleY = H / 1024;
 
-            const baseGrad = ctx.createRadialGradient(512, 256, 50, 512, 256, 550);
-            baseGrad.addColorStop(0, '#16082c');
-            baseGrad.addColorStop(0.5, '#070314');
-            baseGrad.addColorStop(1, '#010206');
-            ctx.fillStyle = baseGrad;
-            ctx.fillRect(0, 0, 1024, 512);
+            // Ticket 04: 4K Stationary Chromatic Skydome - 5% Feathered Dark Boundary Rifts & +50% Twinkling Stars
+            // 5 Zones:
+            // 1. North Polar Vortex (Expanded): 0% - 27% (y: 0 - 553)
+            // 2. North Feathered Dark Rift: 27% - 32% (y: 553 - 655, exactly 5% height)
+            // 3. Central Equatorial Galaxy Stream: 32% - 68% (y: 655 - 1393, 36% height)
+            // 4. South Feathered Dark Rift: 68% - 73% (y: 1393 - 1495, exactly 5% height)
+            // 5. South Polar Vortex (Expanded): 73% - 100% (y: 1495 - 2048)
 
-            function drawNebulaCloud(cx, cy, rx, ry, col1, col2) {
+            // 1. Five-Tier Celestial Linear Base Gradient (deep contrast & harmonized with scene.fog 0x0b0c26)
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+            // Tier 1: North Polar Vortex base (0% - 27%)
+            bgGrad.addColorStop(0.00, '#06071d'); // Luminous zenith polar base
+            bgGrad.addColorStop(0.14, '#090a28');
+            bgGrad.addColorStop(0.24, '#050618');
+            bgGrad.addColorStop(0.27, '#03040e'); // North boundary feathering into rift
+            // Tier 2: North Feathered Dark Rift (27% - 32%) - exactly 5% height with soft feathering
+            bgGrad.addColorStop(0.285, '#020308'); // Interstellar pitch-black core
+            bgGrad.addColorStop(0.305, '#020308'); // Interstellar pitch-black core
+            bgGrad.addColorStop(0.32, '#050616');  // Feathering out to central stream
+            // Tier 3: Central Equatorial Galaxy Stream (32% - 68%)
+            bgGrad.addColorStop(0.40, '#080922');
+            bgGrad.addColorStop(0.50, '#0b0c26'); // Midnight Indigo equator harmonized with scene.fog
+            bgGrad.addColorStop(0.60, '#080922');
+            bgGrad.addColorStop(0.68, '#050616'); // South boundary feathering into rift
+            // Tier 4: South Feathered Dark Rift (68% - 73%) - exactly 5% height with soft feathering
+            bgGrad.addColorStop(0.695, '#020308'); // Interstellar pitch-black core
+            bgGrad.addColorStop(0.715, '#020308'); // Interstellar pitch-black core
+            bgGrad.addColorStop(0.73, '#03040e');  // Feathering out to south vortex
+            // Tier 5: South Polar Vortex base (73% - 100%)
+            bgGrad.addColorStop(0.76, '#050618');
+            bgGrad.addColorStop(0.86, '#090a28');
+            bgGrad.addColorStop(1.00, '#06071d'); // Luminous nadir polar base
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Helper: Seamless circular/elliptical nebula puff with 360-degree wrapping
+            function drawNebulaPuff(cx, cy, rx, ry, innerCol, midCol, outerCol) {
+                function renderAt(x, y) {
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.scale(1.0, ry / rx);
+                    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+                    g.addColorStop(0.0, innerCol);
+                    if (midCol) g.addColorStop(0.45, midCol);
+                    g.addColorStop(1.0, outerCol);
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+                renderAt(cx, cy);
+                if (cx - rx < 0) renderAt(cx + W, cy);
+                if (cx + rx > W) renderAt(cx - W, cy);
+            }
+
+            // Pseudo-normal offset helper
+            function randNorm() {
+                return (Math.random() + Math.random() + Math.random() - 1.5) * 0.667;
+            }
+
+            // Multi-spectral star color palettes
+            const starPalettes = [
+                (a) => `rgba(255, 255, 255, ${a})`,     // 55% Silver-white
+                (a) => `rgba(180, 245, 255, ${a})`,     // 20% Diamond cyan
+                (a) => `rgba(255, 228, 160, ${a})`,     // 15% Warm gold
+                (a) => `rgba(245, 185, 255, ${a})`      // 10% Soft amethyst
+            ];
+
+            function pickStarColor(alpha) {
+                const r = Math.random();
+                if (r < 0.55) return starPalettes[0](alpha);
+                if (r < 0.75) return starPalettes[1](alpha);
+                if (r < 0.90) return starPalettes[2](alpha);
+                return starPalettes[3](alpha);
+            }
+
+            // Jewel tones color stops: Cyan -> Emerald -> Amber -> Magenta -> Amethyst -> Cyan
+            const JEWEL_PALETTE = [
+                { stop: 0.00, rgb: [0, 242, 254] },   // Cyan
+                { stop: 0.20, rgb: [0, 255, 136] },   // Emerald Green
+                { stop: 0.40, rgb: [255, 184, 0] },   // Amber Gold
+                { stop: 0.60, rgb: [255, 45, 141] },  // Neon Magenta/Pink
+                { stop: 0.80, rgb: [168, 85, 247] },  // Amethyst Violet
+                { stop: 1.00, rgb: [0, 242, 254] }    // Seamless wrap
+            ];
+
+            function getPaletteColor(t, alpha = 1.0) {
+                let norm = t % 1.0;
+                if (norm < 0) norm += 1.0;
+                let idx = 0;
+                for (let i = 0; i < JEWEL_PALETTE.length - 1; i++) {
+                    if (norm >= JEWEL_PALETTE[i].stop && norm <= JEWEL_PALETTE[i + 1].stop) {
+                        idx = i;
+                        break;
+                    }
+                }
+                const c1 = JEWEL_PALETTE[idx];
+                const c2 = JEWEL_PALETTE[idx + 1];
+                const f = (norm - c1.stop) / (c2.stop - c1.stop);
+                const r = Math.round(c1.rgb[0] + (c2.rgb[0] - c1.rgb[0]) * f);
+                const g = Math.round(c1.rgb[1] + (c2.rgb[1] - c1.rgb[1]) * f);
+                const b = Math.round(c1.rgb[2] + (c2.rgb[2] - c1.rgb[2]) * f);
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
+
+            // Continuous sinusoidal centerline for Central Galaxy Stream (bounded in 32%-68% zone)
+            function getRibbonCenterY(x) {
+                const theta = (x / W) * Math.PI * 2;
+                return H * 0.5 +
+                       (Math.sin(theta) * 115 +
+                       Math.sin(theta * 2 + 1.2) * 45 +
+                       Math.cos(theta * 3 - 0.7) * 22) * scaleY;
+            }
+
+            // 2. Dual Polar Vortex Generator (Zenith North: 0%-27%, Nadir South: 73%-100%) - Ticket 04: Expanded to 27%
+            const filamentJewels = [
+                { name: 'cyan', rgb: [0, 242, 254] },
+                { name: 'neonPink', rgb: [255, 45, 141] },
+                { name: 'emerald', rgb: [0, 255, 136] },
+                { name: 'amber', rgb: [255, 184, 0] },
+                { name: 'amethyst', rgb: [168, 85, 247] }
+            ];
+
+            function renderPolarVortex(isNorth) {
+                const VORTEX_HEIGHT = Math.round(H * 0.27); // Ticket 04: 27% of H
+                const swirlDir = isNorth ? 1.0 : -1.0;
+
+                // A. Polar Eye & Central Luminous Radiant Bloom
                 ctx.save();
-                ctx.translate(cx, cy);
-                const g = ctx.createRadialGradient(0, 0, 10, 0, 0, rx);
-                g.addColorStop(0, col1);
-                g.addColorStop(0.45, col2);
-                g.addColorStop(1, 'transparent');
-                ctx.fillStyle = g;
-                ctx.scale(1.0, ry / rx);
-                ctx.beginPath();
-                ctx.arc(0, 0, rx, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.globalCompositeOperation = 'screen';
+                const eyeY = isNorth ? (12 * scaleY) : H - (12 * scaleY);
+                for (let x = 0; x <= W; x += 36 * scaleX) {
+                    const u = x / W;
+                    const col = getPaletteColor(u, 0.28);
+                    drawNebulaPuff(x, eyeY, 110 * scaleX, 22 * scaleY, 'rgba(255, 255, 255, 0.35)', col, 'rgba(0, 0, 0, 0)');
+                }
+
+                // B. Five Swirling Spiral Filaments in Jewel Tones
+                // Pass 1: Broad Swirling Nebula Body (Screen blending with feathered falloff)
+                for (let a = 0; a < 5; a++) {
+                    const jewel = filamentJewels[a];
+                    const armBaseAngle = a * (Math.PI * 2 / 5);
+                    for (let t = 0.04; t <= 0.96; t += 0.024) {
+                        // Smooth feathered cosine falloff (1.0 at pole, 0.0 at dark rift boundary)
+                        const feather = Math.cos(t * Math.PI * 0.5);
+                        const angle = armBaseAngle + swirlDir * (t * 3.8 + 0.35 * Math.sin(t * Math.PI));
+                        let x = ((angle / (Math.PI * 2)) % 1.0);
+                        if (x < 0) x += 1.0;
+                        x *= W;
+                        const y = isNorth ? (t * VORTEX_HEIGHT) : (H - t * VORTEX_HEIGHT);
+
+                        const rx = (50 + t * 40) * scaleX;
+                        const ry = (20 + t * 18) * scaleY;
+                        const colInner = `rgba(${jewel.rgb[0]}, ${jewel.rgb[1]}, ${jewel.rgb[2]}, ${feather * 0.28})`;
+                        const colMid = `rgba(${jewel.rgb[0]}, ${jewel.rgb[1]}, ${jewel.rgb[2]}, ${feather * 0.10})`;
+                        drawNebulaPuff(x, y, rx, ry, colInner, colMid, 'rgba(0, 0, 0, 0)');
+                    }
+                }
+
+                // Pass 2: High-Luminance Spiral Filament Cores (Lighter / Additive blending)
+                ctx.globalCompositeOperation = 'lighter';
+                for (let a = 0; a < 5; a++) {
+                    const jewel = filamentJewels[a];
+                    const armBaseAngle = a * (Math.PI * 2 / 5);
+                    for (let t = 0.06; t <= 0.94; t += 0.016) {
+                        const feather = Math.cos(t * Math.PI * 0.5);
+                        const angle = armBaseAngle + swirlDir * (t * 3.8 + 0.35 * Math.sin(t * Math.PI));
+                        let x = ((angle / (Math.PI * 2)) % 1.0);
+                        if (x < 0) x += 1.0;
+                        x *= W;
+                        const y = isNorth ? (t * VORTEX_HEIGHT) : (H - t * VORTEX_HEIGHT);
+
+                        const rxCore = (24 + t * 14) * scaleX;
+                        const ryCore = (10 + t * 8) * scaleY;
+                        const colInner = `rgba(255, 255, 255, ${feather * 0.42})`;
+                        const colMid = `rgba(${jewel.rgb[0]}, ${jewel.rgb[1]}, ${jewel.rgb[2]}, ${feather * 0.32})`;
+                        drawNebulaPuff(x, y, rxCore, ryCore, colInner, colMid, 'rgba(0, 0, 0, 0)');
+                    }
+                }
+
+                // Pass 3: Delicate Intertwining Secondary Filaments
+                for (let a = 0; a < 5; a++) {
+                    const jewel = filamentJewels[(a + 2) % 5];
+                    const armBaseAngle = (a + 0.5) * (Math.PI * 2 / 5);
+                    for (let t = 0.12; t <= 0.88; t += 0.03) {
+                        const feather = Math.cos(t * Math.PI * 0.5);
+                        const angle = armBaseAngle + swirlDir * (t * 4.4 + 0.5 * Math.sin(t * Math.PI * 1.5));
+                        let x = ((angle / (Math.PI * 2)) % 1.0);
+                        if (x < 0) x += 1.0;
+                        x *= W;
+                        const y = isNorth ? (t * VORTEX_HEIGHT) : (H - t * VORTEX_HEIGHT);
+
+                        const rxSec = (18 + t * 10) * scaleX;
+                        const rySec = (8 + t * 6) * scaleY;
+                        const colInner = `rgba(${jewel.rgb[0]}, ${jewel.rgb[1]}, ${jewel.rgb[2]}, ${feather * 0.22})`;
+                        drawNebulaPuff(x, y, rxSec, rySec, colInner, null, 'rgba(0, 0, 0, 0)');
+                    }
+                }
+                ctx.restore();
+
+                // C. Polar Micro-Starfield (~750 stars seeded within this polar vortex, +50% Ticket 04)
+                const POLAR_STARS = 750;
+                const CLUSTERED_POLAR = 525; // 70% along vortex filaments
+                for (let i = 0; i < POLAR_STARS; i++) {
+                    let sx, sy;
+                    if (i < CLUSTERED_POLAR) {
+                        const a = Math.floor(Math.random() * 5);
+                        const armBaseAngle = a * (Math.PI * 2 / 5);
+                        const t = 0.03 + Math.random() * 0.92;
+                        const angle = armBaseAngle + swirlDir * (t * 3.8 + 0.35 * Math.sin(t * Math.PI));
+                        let bx = ((angle / (Math.PI * 2)) % 1.0);
+                        if (bx < 0) bx += 1.0;
+                        bx *= W;
+                        const by = isNorth ? (t * VORTEX_HEIGHT) : (H - t * VORTEX_HEIGHT);
+
+                        sx = (bx + randNorm() * 55 * scaleX + W) % W;
+                        const ySpread = randNorm() * 18 * scaleY;
+                        sy = isNorth ? Math.max(1, Math.min(VORTEX_HEIGHT - 1, by + ySpread)) : Math.max(H - VORTEX_HEIGHT + 1, Math.min(H - 1, by + ySpread));
+                    } else {
+                        sx = Math.random() * W;
+                        sy = isNorth ? Math.random() * VORTEX_HEIGHT : (H - VORTEX_HEIGHT + Math.random() * VORTEX_HEIGHT);
+                    }
+
+                    const sa = 0.40 + Math.random() * 0.55;
+                    const sr = 0.25 + Math.random() * 0.50; // 4K ultra-fine sub-pixel 0.25px - 0.75px
+                    ctx.fillStyle = pickStarColor(sa);
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Seamless horizontal wrapping
+                    if (sx < 4) {
+                        ctx.beginPath();
+                        ctx.arc(sx + W, sy, sr, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (sx > W - 4) {
+                        ctx.beginPath();
+                        ctx.arc(sx - W, sy, sr, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+
+                // D. Soft glow stellar points (30 prominent stars with 9 diffraction spikes per pole, +50% Ticket 04)
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                for (let i = 0; i < 30; i++) {
+                    const a = Math.floor(Math.random() * 5);
+                    const armBaseAngle = a * (Math.PI * 2 / 5);
+                    const t = 0.06 + Math.random() * 0.88;
+                    const angle = armBaseAngle + swirlDir * (t * 3.8 + 0.35 * Math.sin(t * Math.PI));
+                    let bx = ((angle / (Math.PI * 2)) % 1.0);
+                    if (bx < 0) bx += 1.0;
+                    const sx = (bx * W + randNorm() * 40 * scaleX + W) % W;
+                    const by = isNorth ? (t * VORTEX_HEIGHT) : (H - t * VORTEX_HEIGHT);
+                    const sy = isNorth ? Math.max(3, Math.min(VORTEX_HEIGHT - 3, by + randNorm() * 14 * scaleY)) : Math.max(H - VORTEX_HEIGHT + 3, Math.min(H - 3, by + randNorm() * 14 * scaleY));
+                    const glowR = (5 + Math.random() * 7) * scaleY;
+                    const jewel = filamentJewels[a];
+                    const starCol = `rgba(${jewel.rgb[0]}, ${jewel.rgb[1]}, ${jewel.rgb[2]}, 0.70)`;
+
+                    function drawVortexGlowStar(x, y) {
+                        const g = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+                        g.addColorStop(0.0, 'rgba(255, 255, 255, 0.95)');
+                        g.addColorStop(0.3, starCol);
+                        g.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+                        ctx.fillStyle = g;
+                        ctx.beginPath();
+                        ctx.arc(x, y, glowR, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        if (i < 9) { // Ticket 04: 9 optical spikes (+50%)
+                            ctx.strokeStyle = starCol;
+                            ctx.lineWidth = 0.75 * scaleY;
+                            const spikeLen = glowR * 1.4;
+                            ctx.beginPath();
+                            ctx.moveTo(x - spikeLen, y); ctx.lineTo(x + spikeLen, y);
+                            ctx.moveTo(x, y - spikeLen); ctx.lineTo(x + spikeLen, y);
+                            ctx.stroke();
+                        }
+                    }
+
+                    drawVortexGlowStar(sx, sy);
+                    if (sx - glowR < 0) drawVortexGlowStar(sx + W, sy);
+                    if (sx + glowR > W) drawVortexGlowStar(sx - W, sy);
+                }
                 ctx.restore();
             }
 
-            drawNebulaCloud(250, 160, 250, 150, 'rgba(255, 45, 141, 0.5)', 'rgba(0, 242, 254, 0.25)');
-            drawNebulaCloud(800, 350, 275, 160, 'rgba(168, 85, 247, 0.5)', 'rgba(255, 45, 141, 0.25)');
-            drawNebulaCloud(512, 225, 220, 130, 'rgba(255, 215, 0, 0.4)', 'rgba(0, 255, 102, 0.2)');
+            // Render North & South Polar Vortexes (Ticket 04: expanded to 27%)
+            renderPolarVortex(true);  // North Polar Vortex (0% - 27%)
+            renderPolarVortex(false); // South Polar Vortex (73% - 100%)
 
-            for (let i = 0; i < 2000; i++) {
-                const sx = Math.random() * 1024;
-                const sy = Math.random() * 512;
-                const sr = Math.random() * 1.8;
-                const sa = 0.4 + Math.random() * 0.6;
-                ctx.fillStyle = (Math.random() > 0.3) ? `rgba(255, 255, 255, ${sa})` : `rgba(255, 128, 191, ${sa})`;
+            // 3. Layered Central Celestial Ribbon in Rich Jewel Tones (32% - 68%)
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+
+            // Layer A: Broad Outer Nebula Bloom
+            for (let x = 0; x <= W; x += 28 * scaleX) {
+                const u = x / W;
+                const cy = getRibbonCenterY(x);
+                const rx = (210 + Math.sin(u * Math.PI * 6) * 45) * scaleX;
+                const ry = (140 + Math.cos(u * Math.PI * 4) * 30) * scaleY;
+                const colInner = getPaletteColor(u, 0.208);
+                const colMid = getPaletteColor(u, 0.072);
+                drawNebulaPuff(x, cy, rx, ry, colInner, colMid, 'rgba(0, 0, 0, 0)');
+            }
+
+            // Layer B: Harmonic Intersecting Strand (counter-rhythm)
+            for (let x = 0; x <= W; x += 32 * scaleX) {
+                const u = x / W;
+                const theta2 = u * Math.PI * 2 - 1.4;
+                const cy2 = H * 0.5 + (Math.sin(theta2) * 110 + Math.cos(theta2 * 2 + 0.8) * 45) * scaleY;
+                const rx2 = (150 + Math.cos(u * Math.PI * 8) * 30) * scaleX;
+                const ry2 = (90 + Math.sin(u * Math.PI * 6) * 18) * scaleY;
+                const colInner = getPaletteColor((u + 0.35) % 1.0, 0.176);
+                const colMid = getPaletteColor((u + 0.35) % 1.0, 0.056);
+                drawNebulaPuff(x, cy2, rx2, ry2, colInner, colMid, 'rgba(0, 0, 0, 0)');
+            }
+
+            // Layer C: Dense Luminous Core Stream & Filaments
+            ctx.globalCompositeOperation = 'lighter';
+            for (let x = 0; x <= W; x += 20 * scaleX) {
+                const u = x / W;
+                const cy = getRibbonCenterY(x);
+                const rxCore = (70 + Math.sin(u * Math.PI * 10) * 18) * scaleX;
+                const ryCore = (40 + Math.cos(u * Math.PI * 8) * 12) * scaleY;
+                const colInner = 'rgba(255, 255, 255, 0.28)';
+                const colMid = getPaletteColor(u, 0.24);
+                drawNebulaPuff(x, cy, rxCore, ryCore, colInner, colMid, 'rgba(0, 0, 0, 0)');
+            }
+
+            // Layer D: Accented Cosmic Dust Billows along major crests
+            const billows = [
+                { u: 0.12, col1: 'rgba(0, 242, 254, 0.28)', col2: 'rgba(0, 255, 136, 0.16)', rx: 260 * scaleX, ry: 170 * scaleY },
+                { u: 0.32, col1: 'rgba(0, 255, 136, 0.24)', col2: 'rgba(255, 184, 0, 0.176)', rx: 240 * scaleX, ry: 160 * scaleY },
+                { u: 0.52, col1: 'rgba(255, 184, 0, 0.28)', col2: 'rgba(255, 45, 141, 0.192)', rx: 270 * scaleX, ry: 180 * scaleY },
+                { u: 0.72, col1: 'rgba(255, 45, 141, 0.304)', col2: 'rgba(168, 85, 247, 0.192)', rx: 280 * scaleX, ry: 190 * scaleY },
+                { u: 0.90, col1: 'rgba(168, 85, 247, 0.256)', col2: 'rgba(0, 242, 254, 0.176)', rx: 250 * scaleX, ry: 165 * scaleY }
+            ];
+            for (const b of billows) {
+                const bx = b.u * W;
+                const by = getRibbonCenterY(bx);
+                drawNebulaPuff(bx, by, b.rx, b.ry, b.col1, b.col2, 'rgba(0, 0, 0, 0)');
+            }
+            ctx.restore();
+
+            // 4. Deep Dark Nebula Rifts (Ticket 04: exactly 5% height: 27% - 32% and 68% - 73%) - Feathered Dust Absorption Lanes
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            for (let x = 0; x <= W; x += 40 * scaleX) {
+                const u = x / W;
+                // North Rift band (center y: 29.5% of H, width: 5% of H)
+                const cyN = (H * 0.295) + (Math.sin(u * Math.PI * 4) * 6 + Math.cos(u * Math.PI * 2) * 4) * scaleY;
+                drawNebulaPuff(x, cyN, 140 * scaleX, 36 * scaleY, 'rgba(2, 3, 8, 0.88)', 'rgba(4, 5, 14, 0.45)', 'rgba(0, 0, 0, 0)');
+
+                // South Rift band (center y: 70.5% of H, width: 5% of H)
+                const cyS = (H * 0.705) + (Math.cos(u * Math.PI * 4) * 6 + Math.sin(u * Math.PI * 2) * 4) * scaleY;
+                drawNebulaPuff(x, cyS, 140 * scaleX, 36 * scaleY, 'rgba(2, 3, 8, 0.88)', 'rgba(4, 5, 14, 0.45)', 'rgba(0, 0, 0, 0)');
+            }
+            ctx.restore();
+
+            // Faint micro-stars inside 5% Dark Rifts (Ticket 04: 45-60 faint stars per rift, alpha 0.20 - 0.35)
+            const RIFT_STARS = 52;
+            for (let i = 0; i < RIFT_STARS; i++) {
+                // North Rift micro-stars (y: 27% - 32%)
+                const nx = Math.random() * W;
+                const ny = (0.27 + Math.random() * 0.05) * H;
+                const na = 0.20 + Math.random() * 0.15; // alpha 0.20 - 0.35
+                const nr = 0.20 + Math.random() * 0.35; // delicate faint sub-pixel
+                ctx.fillStyle = pickStarColor(na);
+                ctx.beginPath();
+                ctx.arc(nx, ny, nr, 0, Math.PI * 2);
+                ctx.fill();
+                if (nx < 4) {
+                    ctx.beginPath(); ctx.arc(nx + W, ny, nr, 0, Math.PI * 2); ctx.fill();
+                } else if (nx > W - 4) {
+                    ctx.beginPath(); ctx.arc(nx - W, ny, nr, 0, Math.PI * 2); ctx.fill();
+                }
+
+                // South Rift micro-stars (y: 68% - 73%)
+                const sx = Math.random() * W;
+                const sy = (0.68 + Math.random() * 0.05) * H;
+                const sa = 0.20 + Math.random() * 0.15; // alpha 0.20 - 0.35
+                const sr = 0.20 + Math.random() * 0.35;
+                ctx.fillStyle = pickStarColor(sa);
                 ctx.beginPath();
                 ctx.arc(sx, sy, sr, 0, Math.PI * 2);
                 ctx.fill();
+                if (sx < 4) {
+                    ctx.beginPath(); ctx.arc(sx + W, sy, sr, 0, Math.PI * 2); ctx.fill();
+                } else if (sx > W - 4) {
+                    ctx.beginPath(); ctx.arc(sx - W, sy, sr, 0, Math.PI * 2); ctx.fill();
+                }
             }
+
+            // 5. Central Micro-Starfield (Ticket 04: 5,250 Multi-Spectral Stars, +50% from 3,500)
+            const TOTAL_STARS = 5250;
+            const CLUSTERED_STARS = 3410; // ~65% along the celestial stream
+
+            const yMinStream = H * 0.32;
+            const yMaxStream = H * 0.68;
+            const streamSpan = yMaxStream - yMinStream;
+
+            for (let i = 0; i < TOTAL_STARS; i++) {
+                const sx = Math.random() * W;
+                let sy;
+                if (i < CLUSTERED_STARS) {
+                    // Clustered organically along the undulating ribbon
+                    const cy = getRibbonCenterY(sx);
+                    sy = cy + randNorm() * (220 * scaleY);
+                    if (sy < yMinStream) sy = yMinStream + Math.random() * (100 * scaleY);
+                    if (sy > yMaxStream) sy = yMaxStream - Math.random() * (100 * scaleY);
+                } else {
+                    // Distributed across central galaxy stream (32% - 68%)
+                    sy = yMinStream + Math.random() * streamSpan;
+                }
+
+                const sa = 0.45 + Math.random() * 0.5;
+                const sr = 0.25 + Math.random() * 0.50; // 4K ultra-fine sub-pixel 0.25px - 0.75px
+                ctx.fillStyle = pickStarColor(sa);
+
+                ctx.beginPath();
+                ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Seamless horizontal wrapping for stars near edges
+                if (sx < 4) {
+                    ctx.beginPath();
+                    ctx.arc(sx + W, sy, sr, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (sx > W - 4) {
+                    ctx.beginPath();
+                    ctx.arc(sx - W, sy, sr, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Soft glow stellar points (Ticket 04: 120 prominent stars (+50%), 38 diffraction cross spikes (+50%))
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            for (let i = 0; i < 120; i++) {
+                const sx = Math.random() * W;
+                const cy = getRibbonCenterY(sx);
+                const sy = (i < 90) ? Math.max(yMinStream + 2, Math.min(yMaxStream - 2, cy + randNorm() * (160 * scaleY))) : (yMinStream + 2 + Math.random() * (streamSpan - 4));
+                const glowR = (6 + Math.random() * 9) * scaleY;
+                const starCol = pickStarColor(0.65);
+
+                function drawGlowStar(x, y) {
+                    const g = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+                    g.addColorStop(0.0, 'rgba(255, 255, 255, 0.95)');
+                    g.addColorStop(0.25, starCol);
+                    g.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.arc(x, y, glowR, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Optical 4-point diffraction cross spikes for top 38 brightest (Ticket 04: 38 spikes)
+                    if (i < 38) {
+                        ctx.strokeStyle = starCol;
+                        ctx.lineWidth = 0.75 * scaleY;
+                        const spikeLen = glowR * 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(x - spikeLen, y); ctx.lineTo(x + spikeLen, y);
+                        ctx.moveTo(x, y - spikeLen); ctx.lineTo(x + spikeLen, y);
+                        ctx.stroke();
+                    }
+                }
+
+                drawGlowStar(sx, sy);
+                if (sx - glowR < 0) drawGlowStar(sx + W, sy);
+                if (sx + glowR > W) drawGlowStar(sx - W, sy);
+            }
+            ctx.restore();
 
             const skyTex = new THREE.CanvasTexture(cvs);
             skyTex.mapping = THREE.EquirectangularReflectionMapping;
             skyTex.colorSpace = THREE.SRGBColorSpace;
-            scene.background = skyTex;
+            scene.background = new THREE.Color(0x0b0c26);
             scene.environment = skyTex;
+
+            const skydomeGeo = new THREE.SphereGeometry(400, 120, 80);
+            const skydomeMat = new THREE.MeshBasicMaterial({
+                map: skyTex,
+                side: THREE.BackSide,
+                depthWrite: false,
+                fog: false,
+                transparent: true,
+                opacity: 1.0
+            });
+            skydomeMesh = new THREE.Mesh(skydomeGeo, skydomeMat);
+            skydomeMesh.name = 'VibrantNebulaSkydome';
+            skydomeMesh.renderOrder = -1000;
+            scene.add(skydomeMesh);
+            window.skydomeMesh = skydomeMesh;
         }
 
         function setupStudioLighting() {
@@ -1858,15 +2365,20 @@
                 opacity: 1.0
             });
 
+            // Gom nhóm cụm sách và dịch chuyển -2.3 (-W * 0.5) để trọng tâm hình học sách nằm tại (0, 0, 0) của albumRoot
+            bookAssembly = new THREE.Group();
+            bookAssembly.position.set(-W * 0.5, 0, 0);
+            albumRoot.add(bookAssembly);
+
             const spineGeo = new THREE.CylinderGeometry(R, R, H + BOOK.bevel * 2, 24, 1, false, Math.PI / 2, Math.PI);
             spineGeo.center();
             spineMesh = new THREE.Mesh(spineGeo, chibiCoverMat);
             spineMesh.rotation.y = Math.PI;
-            albumRoot.add(spineMesh);
+            bookAssembly.add(spineMesh);
 
             leftCoverHinge = new THREE.Group();
             leftCoverHinge.position.set(0, 0, -R);
-            albumRoot.add(leftCoverHinge);
+            bookAssembly.add(leftCoverHinge);
 
             const leftGeo = createCoverExtrusion(W, H, T, BOOK.bevel);
             const leftMesh = new THREE.Mesh(leftGeo, chibiCoverMat);
@@ -1875,7 +2387,7 @@
 
             rightCoverHinge = new THREE.Group();
             rightCoverHinge.position.set(0, 0, R);
-            albumRoot.add(rightCoverHinge);
+            bookAssembly.add(rightCoverHinge);
 
             const rightGeo = createCoverExtrusion(W, H, T, BOOK.bevel);
             const rightMesh = new THREE.Mesh(rightGeo, chibiCoverMat);
@@ -2015,6 +2527,11 @@
                     szClosed = 0.055;
                 }
 
+                // Dịch chuyển trục X lùi -2.3 (-W * 0.5) để tâm sách và hạt trùng khớp tâm thế giới (0, 0, 0)
+                const bookCenterOffsetX = -2.3;
+                bx += bookCenterOffsetX;
+                ox += bookCenterOffsetX;
+
                 pBookPos[i * 3] = bx;
                 pBookPos[i * 3 + 1] = by;
                 pBookPos[i * 3 + 2] = bz;
@@ -2035,23 +2552,22 @@
                 pBurstDir[i * 3 + 1] = bDir.y;
                 pBurstDir[i * 3 + 2] = bDir.z;
 
-                // Tọa độ khối tinh cầu đặc 360 độ (Dense Particle Sphere)
-                const sR = 2.0 + Math.pow(Math.random(), 0.55) * 14.5;
+                // Tọa độ khối tinh cầu thể tích đồng nhất 360 độ (Volumetric Uniform Stardust Sphere)
+                const sR = 14.5 * Math.cbrt(Math.random());
                 const sTheta = Math.random() * Math.PI * 2;
                 const sPhi = Math.acos(2 * Math.random() - 1);
 
                 const gx = sR * Math.sin(sPhi) * Math.cos(sTheta);
-                const gy = sR * Math.sin(sPhi) * Math.sin(sTheta) * 0.92;
-                const gz = sR * Math.cos(sPhi);
+                const gy = sR * Math.cos(sPhi);
+                const gz = sR * Math.sin(sPhi) * Math.sin(sTheta);
 
                 pGalaxyPos[i * 3] = gx;
                 pGalaxyPos[i * 3 + 1] = gy;
                 pGalaxyPos[i * 3 + 2] = gz;
 
-                // Kích thước hạt theo bán kính (Radial Particle Sizing: to ở tâm, nhỏ dần ra ngoài)
-                const rNorm = THREE.MathUtils.clamp(sR / 16.5, 0.0, 1.0);
-                const radialScale = 1.70 - 1.0 * rNorm; // Tâm: 1.7x, rìa ngoài: 0.7x
-                szGalaxy = (0.32 + Math.random() * 0.26) * radialScale;
+                // Kích thước hạt đồng đều hài hòa (0.30 - 0.40)
+                const rNorm = THREE.MathUtils.clamp(sR / 14.5, 0.0, 1.0);
+                szGalaxy = 0.30 + Math.random() * 0.10;
 
                 // Thêm hạt màu vào khối cầu (Sphere) cho phong phú, huyền ảo
                 if (isExtra < 0.5) {
@@ -2113,7 +2629,7 @@
 
                         vec3 curP = mix(position, openedPosition, uOpenRatio);
                         if (pageFlag > 0.5) {
-                            float curve = sin(uOpenRatio * 3.14159265) * archParam * sin((curP.x / 4.35) * 3.14159265);
+                            float curve = sin(uOpenRatio * 3.14159265) * archParam * sin(clamp((curP.x + 2.3) / 4.35, 0.0, 1.0) * 3.14159265);
                             curP.z -= curve;
                         }
 
@@ -2140,9 +2656,7 @@
                         float pulse = 1.0 + 0.32 * sin(uTime * 3.5 + phase * 6.28);
                         gl_PointSize = curSize * pulse * (300.0 / -mvPos.z);
 
-                        float extraAlpha = (1.0 - smoothstep(0.0, 0.45, uBurstRatio)) * (1.0 - uGalaxyRatio);
-                        float baseAlpha = 0.82 + 0.18 * uGalaxyRatio;
-                        vAlpha = mix(baseAlpha, extraAlpha * 0.95, isExtra) * uFocusDim;
+                        vAlpha = (0.82 + 0.18 * uGalaxyRatio) * uFocusDim;
                     }
                 `,
                 fragmentShader: `
@@ -2398,6 +2912,125 @@
             scene.add(crossFlareMesh);
         }
 
+        function buildDedicatedMiniStardustSwarm() {
+            const count = 100;
+            const pos = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const orbitAngles = new Float32Array(count);
+            const orbitRadii = new Float32Array(count);
+            const orbitSpeeds = new Float32Array(count);
+            const yOffsets = new Float32Array(count);
+            const sizes = new Float32Array(count);
+            const phases = new Float32Array(count);
+
+            const jewelTones = [
+                new THREE.Color('#00f2fe'), // Cyan
+                new THREE.Color('#ff2d8d'), // Neon pink
+                new THREE.Color('#ffb703'), // Amber gold
+                new THREE.Color('#a855f7')  // Amethyst purple
+            ];
+
+            const goldenRatio = 1.61803398875;
+
+            for (let i = 0; i < count; i++) {
+                // Quỹ đạo R = 3.6 .. 5.4 bao quanh cuốn sách
+                const r = 3.6 + (i / (count - 1)) * 1.8;
+                const angle = 2 * Math.PI * ((i * goldenRatio) % 1.0);
+                const speed = 0.12 + (i % 7) * 0.02;
+                const y = ((i % 17) / 16 - 0.5) * 5.2;
+                const sz = 0.12 + (i % 11) * 0.006; // Kích thước hạt 0.12 - 0.18
+                const phase = (i * 2.399963) % (Math.PI * 2);
+
+                // Màu đá quý đa sắc (Jewel tones) tăng cường 1.5x cho HDR bloom pass
+                const baseCol = jewelTones[i % jewelTones.length].clone().multiplyScalar(1.5);
+
+                orbitAngles[i] = angle;
+                orbitRadii[i] = r;
+                orbitSpeeds[i] = speed;
+                yOffsets[i] = y;
+                sizes[i] = sz;
+                phases[i] = phase;
+
+                colors[i * 3] = baseCol.r;
+                colors[i * 3 + 1] = baseCol.g;
+                colors[i * 3 + 2] = baseCol.b;
+
+                pos[i * 3] = Math.cos(angle) * r;
+                pos[i * 3 + 1] = y;
+                pos[i * 3 + 2] = Math.sin(angle) * r;
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('aOrbitAngle', new THREE.BufferAttribute(orbitAngles, 1));
+            geo.setAttribute('aOrbitRadius', new THREE.BufferAttribute(orbitRadii, 1));
+            geo.setAttribute('aOrbitSpeed', new THREE.BufferAttribute(orbitSpeeds, 1));
+            geo.setAttribute('aYOffset', new THREE.BufferAttribute(yOffsets, 1));
+            geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+            geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+            geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+            miniStardustMat = new THREE.ShaderMaterial({
+                vertexShader: `
+                    attribute float aOrbitAngle;
+                    attribute float aOrbitRadius;
+                    attribute float aOrbitSpeed;
+                    attribute float aYOffset;
+                    attribute float aSize;
+                    attribute float aPhase;
+                    attribute vec3 aColor;
+
+                    uniform float uTime;
+                    uniform float uFade;
+
+                    varying vec3 vColor;
+                    varying float vAlpha;
+
+                    void main() {
+                        float angle = aOrbitAngle + uTime * aOrbitSpeed;
+                        float currentR = aOrbitRadius + sin(uTime * 1.8 + aPhase) * 0.15;
+                        float currentY = aYOffset + sin(uTime * 2.2 + aPhase * 1.5) * 0.20;
+                        vec3 localPos = vec3(cos(angle) * currentR, currentY, sin(angle) * currentR);
+
+                        vec4 mv = modelViewMatrix * vec4(localPos, 1.0);
+                        gl_Position = projectionMatrix * mv;
+
+                        float twinkle = 0.6 + 0.4 * sin(uTime * 4.0 + aPhase);
+                        vAlpha = uFade * twinkle;
+                        vColor = aColor;
+
+                        gl_PointSize = aSize * (360.0 / -mv.z) * (0.8 + 0.3 * twinkle);
+                    }
+                `,
+                fragmentShader: `
+                    precision highp float;
+                    varying vec3 vColor;
+                    varying float vAlpha;
+
+                    void main() {
+                        if (vAlpha <= 0.002) discard;
+                        vec2 coord = gl_PointCoord - vec2(0.5);
+                        float dist = length(coord);
+                        if (dist > 0.5) discard;
+                        float soft = smoothstep(0.5, 0.02, dist);
+                        gl_FragColor = vec4(vColor, vAlpha * soft);
+                    }
+                `,
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uFade: { value: 1.0 }
+                },
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            miniStardustMesh = new THREE.Points(geo, miniStardustMat);
+            albumRoot.add(miniStardustMesh);
+            window.miniStardustMesh = miniStardustMesh;
+            window.miniStardustMat = miniStardustMat;
+        }
+
         
         // ==========================================
         // STAGE 5: BGM PLAYLIST & AUDIO ENGINE
@@ -2642,6 +3275,47 @@
             } catch(e) { console.warn("DB Delete:", e); }
         }
 
+        // CƠ CHẾ BLACKLIST LƯU CÁC ẢNH ĐÃ BỊ XÓA VÀO LOCALSTORAGE / INDEXEDDB
+        const BLACKLIST_STORAGE_KEY = 'MemoryZone218_DeletedPhotos_Blacklist';
+
+        function getDeletedPhotoBlacklist() {
+            try {
+                const raw = localStorage.getItem(BLACKLIST_STORAGE_KEY);
+                if (raw) {
+                    const list = JSON.parse(raw);
+                    if (Array.isArray(list)) return list;
+                }
+            } catch (e) {
+                console.warn("Lỗi đọc blacklist từ localStorage:", e);
+            }
+            return [];
+        }
+
+        function saveDeletedPhotoBlacklist(list) {
+            try {
+                localStorage.setItem(BLACKLIST_STORAGE_KEY, JSON.stringify(list));
+            } catch (e) {
+                console.warn("Lỗi lưu blacklist vào localStorage:", e);
+            }
+        }
+
+        function addPhotoToBlacklist(photoId) {
+            const list = getDeletedPhotoBlacklist();
+            const strId = String(photoId);
+            if (!list.some(id => String(id) === strId)) {
+                list.push(photoId);
+                saveDeletedPhotoBlacklist(list);
+            }
+        }
+
+        function clearPhotoBlacklist() {
+            if (confirm("Khôi phục toàn bộ các bức ảnh gốc trong kỷ yếu đã từng bị xóa?")) {
+                localStorage.removeItem(BLACKLIST_STORAGE_KEY);
+                location.reload();
+            }
+        }
+        window.clearPhotoBlacklist = clearPhotoBlacklist;
+
         async function initPhotoLibrary() {
             await initIndexedDB();
 
@@ -2655,16 +3329,27 @@
                 console.warn("Manifest load error:", e);
             }
 
+            // Tự động lọc bỏ các ảnh manifest nằm trong danh sách đen (Blacklist) đã bị xóa
+            const blacklist = getDeletedPhotoBlacklist();
+            if (blacklist && blacklist.length > 0) {
+                const blacklistSet = new Set(blacklist.map(id => String(id)));
+                manifestPhotos = manifestPhotos.filter(p => !blacklistSet.has(String(p.id)));
+            }
+
             const customPhotos = await loadCustomPhotosFromDB();
             allPhotos = [...manifestPhotos, ...customPhotos];
             window.allPhotos = allPhotos;
 
             const badge = document.getElementById('photo-count-badge');
             if (badge) badge.textContent = allPhotos.length;
+            TOTAL_PHOTO_COUNT = allPhotos.length;
+            window.TOTAL_PHOTO_COUNT = allPhotos.length;
 
             refreshAllCardTextures();
+        }
 
-            // Hoàn thành lấy hồi ức -> chuyển sang ô nhập tên
+        function revealGatewayQuestion() {
+            // Hoàn tất lấy hồi ức & GPU pre-warming -> chuyển sang ô nhập tên Cổng Bảo Mật
             const loadEl = document.getElementById('gateway-loading');
             const qEl = document.getElementById('gateway-question');
             if (loadEl && qEl) {
@@ -2678,6 +3363,7 @@
                 }, 400);
             }
         }
+        window.revealGatewayQuestion = revealGatewayQuestion;
 
         function refreshAllCardTextures() {
             if (!allPhotoCards || allPhotoCards.length === 0 || allPhotos.length === 0) return;
@@ -2729,17 +3415,18 @@
                 card.appendChild(img);
                 card.appendChild(title);
 
-                if (item.isCustom) {
-                    const del = document.createElement('button');
-                    del.className = 'grid-del-btn';
-                    del.innerHTML = '✕';
-                    del.title = 'Xóa ảnh này';
-                    del.onclick = (e) => {
-                        e.stopPropagation();
-                        deleteCustomPhoto(item.id, idx);
-                    };
-                    card.appendChild(del);
-                }
+                // Bổ sung nút bấm Xóa ảnh (icon thùng rác màu đỏ) trên từng thẻ ảnh trong Kho ảnh Modal
+                const del = document.createElement('button');
+                del.className = 'grid-del-btn';
+                del.title = 'Xóa ảnh này khỏi kỷ yếu 3D';
+                del.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+                del.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm('Bạn có chắc chắn muốn xóa bức ảnh này khỏi album kỷ yếu 3D không?')) {
+                        deletePhoto(item.id);
+                    }
+                };
+                card.appendChild(del);
 
                 grid.appendChild(card);
             });
@@ -2769,30 +3456,52 @@
                 const reader = new FileReader();
                 reader.onload = (rev) => {
                     const dataUrl = rev.target.result;
-                    const newId = 'custom_' + Date.now() + '_' + fIdx;
-                    const newItem = {
-                        id: newId,
-                        url: dataUrl,
-                        title: file.name.substring(0, 18),
-                        isCustom: true
-                    };
-                    saveCustomPhotoToDB(newItem);
-                    allPhotos.push(newItem);
+                    const img = new Image();
+                    img.onload = () => {
+                        const aspect = (img.naturalWidth && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1.0;
+                        const newId = 'custom_' + Date.now() + '_' + fIdx + '_' + Math.random().toString(36).substr(2, 5);
 
-                    const badge = document.getElementById('photo-count-badge');
-                    if (badge) badge.textContent = allPhotos.length;
-                    openPhotoModal();
+                        const neonPalette = ['#00f2fe', '#ff2d8d', '#ffd700', '#a855f7', '#00ff66', '#ff8c00'];
+                        const dominantCol = neonPalette[allPhotos.length % neonPalette.length];
+
+                        const newItem = {
+                            id: newId,
+                            url: dataUrl,
+                            title: file.name.substring(0, 18),
+                            color: dominantCol,
+                            aspect: aspect,
+                            isCustom: true
+                        };
+
+                        saveCustomPhotoToDB(newItem);
+                        allPhotos.push(newItem);
+                        window.allPhotos = allPhotos;
+
+                        // Tự động tạo thẻ ảnh 3D mới với thuật toán chống va chạm và chèn mượt mà vào khối cầu
+                        if (typeof addPhotoCardToScene === 'function') {
+                            addPhotoCardToScene(newItem);
+                        }
+
+                        const badge = document.getElementById('photo-count-badge');
+                        if (badge) badge.textContent = allPhotos.length;
+                        TOTAL_PHOTO_COUNT = allPhotos.length;
+                        window.TOTAL_PHOTO_COUNT = allPhotos.length;
+
+                        const modal = document.getElementById('photo-modal');
+                        if (modal && modal.classList.contains('active')) {
+                            openPhotoModal();
+                        }
+                    };
+                    img.src = dataUrl;
                 };
                 reader.readAsDataURL(file);
             });
+
+            if (e.target) e.target.value = '';
         }
 
         function deleteCustomPhoto(id, idx) {
-            deleteCustomPhotoFromDB(id);
-            allPhotos.splice(idx, 1);
-            const badge = document.getElementById('photo-count-badge');
-            if (badge) badge.textContent = allPhotos.length;
-            openPhotoModal();
+            deletePhoto(id);
         }
 
         window.openPhotoModal = openPhotoModal;
@@ -3025,15 +3734,24 @@
             return tex;
         }
 
-
+        // Vật liệu Gương Bạc Lỏng PBR (Liquid Silver Chrome) cho mặt sau 324 thẻ ảnh
+        const liquidSilverChromeBackplateMat = new THREE.MeshPhysicalMaterial({
+            color: 0x9aa0a6,
+            metalness: 1.0,
+            roughness: 0.03,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.02,
+            envMapIntensity: 2.8
+        });
+        window.liquidSilverChromeBackplateMat = liquidSilverChromeBackplateMat;
 
         function createPhotoCardMesh(tex, width = 1.10, height = 1.45, dominantCol = '#00f2fe') {
             const group = new THREE.Group();
 
-            // 1. Backplate khung nổi 3D (Đệm đen sang trọng)
+            // 1. Backplate khung nổi 3D (Gương Bạc Lỏng - Liquid Silver Chrome PBR)
             const backplate = new THREE.Mesh(
                 new THREE.BoxGeometry(width + 0.10, height + 0.12, 0.035),
-                new THREE.MeshStandardMaterial({ color: 0x080c18, metalness: 0.6, roughness: 0.25 })
+                liquidSilverChromeBackplateMat
             );
             group.add(backplate);
             group.userData.backplate = backplate;
@@ -3041,7 +3759,7 @@
             // 2. Viền neon phát quang
             const frameLine = new THREE.LineSegments(
                 new THREE.EdgesGeometry(backplate.geometry),
-                new THREE.LineBasicMaterial({ color: new THREE.Color(dominantCol), transparent: true, opacity: 0.85 })
+                new THREE.LineBasicMaterial({ color: new THREE.Color(dominantCol), transparent: true, opacity: 0.20 })
             );
             group.add(frameLine);
             group.userData.frameLine = frameLine;
@@ -3058,9 +3776,9 @@
             group.userData.photoPlane = photoPlane;
 
             // 4. Đốm sáng lung linh (Glow Orb / Stardust) khi sách mở hờ
-            const orbGeo = new THREE.SphereGeometry(0.24, 12, 12);
+            const orbGeo = new THREE.SphereGeometry(0.30, 14, 14);
             const orbMat = new THREE.MeshBasicMaterial({
-                color: new THREE.Color(dominantCol),
+                color: new THREE.Color(dominantCol).multiplyScalar(1.5),
                 transparent: true,
                 opacity: 0.95
             });
@@ -3074,7 +3792,7 @@
         }
 
 
-        function buildSeamlessQuadCoverPhotos() {
+        function createAllPhotoCards() {
             const T = BOOK.thickness;
             const bevel = BOOK.bevel;
 
@@ -3090,17 +3808,194 @@
                 { side: 'back', x: 3.35, y: -2.05, z: -T - bevel - 0.02, rotZ: -0.12, rotY: Math.PI }
             ];
 
-            const goldenRatio = 1.61803398875;
+            // Dọn dẹp thẻ ảnh và anchor cũ nếu đã tồn tại trong scene
+            if (allPhotoCards && allPhotoCards.length > 0) {
+                allPhotoCards.forEach(card => {
+                    if (card.userData && card.userData.anchor && card.userData.anchor.parent) {
+                        card.userData.anchor.parent.remove(card.userData.anchor);
+                    }
+                    if (card.parent) card.parent.remove(card);
+                });
+                allPhotoCards.length = 0;
+            }
 
-            for (let i = 0; i < TOTAL_PHOTO_COUNT; i++) {
-                const photoItem = (allPhotos && allPhotos[i]) ? allPhotos[i] : { url: `assets/web_photos/photo_${String(i).padStart(3, '0')}.jpg`, color: '#00f2fe' };
-                const tex = getPhotoTexture(photoItem.url);
+            // Tự động khởi tạo theo số lượng ảnh thực tế allPhotos.length
+            const totalCards = (allPhotos && allPhotos.length > 0) ? allPhotos.length : 255;
+            TOTAL_PHOTO_COUNT = totalCards;
+            window.TOTAL_PHOTO_COUNT = totalCards;
+
+            const outerTargetCount = Math.max(COVER_PHOTO_COUNT, Math.round(totalCards * 0.25));
+            const minDistance = 1.45; // Khoảng cách tối thiểu chống va chạm (d_min >= 1.4)
+            const minDistanceSq = minDistance * minDistance;
+
+            const placedPoints = [];
+            const cardsLayout = [];
+
+            // 1. Phân bổ hài hòa 8 ảnh bìa lên lớp vỏ ngoài (r in [11.5, 14.0]) - Triệt tiêu hoàn toàn lỗi NaN
+            const rCoverBase = 12.6;
+            for (let i = 0; i < COVER_PHOTO_COUNT; i++) {
+                const r = rCoverBase + (Math.random() - 0.5) * 0.8;
+                let phi, theta;
+                if (i < 4) {
+                    phi = Math.PI * 0.35 + (Math.random() - 0.5) * 0.08;
+                    theta = i * (Math.PI / 2.0) + (Math.random() - 0.5) * 0.12;
+                } else {
+                    phi = Math.PI * 0.65 + (Math.random() - 0.5) * 0.08;
+                    theta = (i - 4) * (Math.PI / 2.0) + Math.PI / 4.0 + (Math.random() - 0.5) * 0.12;
+                }
+
+                const sinPhi = Math.sin(phi);
+                const cosPhi = Math.cos(phi);
+                const gx = r * sinPhi * Math.cos(theta);
+                const gy = r * cosPhi;
+                const gz = r * sinPhi * Math.sin(theta);
+
+                placedPoints.push({ x: gx, y: gy, z: gz });
+                cardsLayout.push({
+                    isCoverPhoto: true,
+                    isOuter: true,
+                    sphereScale: 1.0,
+                    radius: r,
+                    phi: phi,
+                    theta: theta,
+                    sinPhi: sinPhi,
+                    cosPhi: cosPhi,
+                    gx: gx, gy: gy, gz: gz
+                });
+            }
+
+            // 2. Phân bổ các ảnh còn lại: 75% trong lòng (r in [2.5, 11.5], scale 0.80x), 25% vỏ ngoài (r in [11.5, 14.0], scale 1.0x)
+            const remainingOuterNeeded = outerTargetCount - COVER_PHOTO_COUNT;
+            const remainingTotal = totalCards - COVER_PHOTO_COUNT;
+            const outerStep = remainingTotal / Math.max(1, remainingOuterNeeded);
+            let outerAccum = 0.0;
+            let outerCountAssigned = COVER_PHOTO_COUNT;
+
+            for (let i = COVER_PHOTO_COUNT; i < totalCards; i++) {
+                outerAccum += 1.0;
+                let isOuter = false;
+                if (outerAccum >= outerStep && outerCountAssigned < outerTargetCount) {
+                    isOuter = true;
+                    outerAccum -= outerStep;
+                    outerCountAssigned++;
+                }
+
+                const sphereScale = isOuter ? 1.0 : 0.80;
+                const fibIdx = i - COVER_PHOTO_COUNT;
+                const fibN = remainingTotal;
+
+                let chosenR = 0, chosenPhi = 0, chosenTheta = 0;
+                let chosenSinPhi = 0, chosenCosPhi = 0;
+                let chosenX = 0, chosenY = 0, chosenZ = 0;
+                let placed = false;
+
+                for (let attempt = 0; attempt < 150; attempt++) {
+                    // Phân bổ thể tích đồng nhất: 75% ảnh r = 2.5 + 9.0 * cbrt(rand), 25% ảnh r = 11.5 + 2.5 * rand
+                    let r;
+                    if (isOuter) {
+                        r = 11.5 + 2.5 * Math.random();
+                    } else {
+                        r = 2.5 + 9.0 * Math.cbrt(Math.random());
+                    }
+
+                    // Hướng cầu Fibonacci phân bố đều 360 độ
+                    let cosPhi = 1.0 - 2.0 * ((fibIdx + 0.5) / fibN);
+                    if (attempt > 0) {
+                        cosPhi = Math.max(-0.999, Math.min(0.999, cosPhi + (Math.random() - 0.5) * 0.15 * Math.sqrt(attempt)));
+                    }
+                    const sinPhi = Math.sqrt(Math.max(0.001, 1.0 - cosPhi * cosPhi));
+                    const goldenRatio = 1.61803398875;
+                    let theta = 2.0 * Math.PI * goldenRatio * fibIdx;
+                    if (attempt > 0) {
+                        theta += (Math.random() - 0.5) * 0.3 * attempt;
+                    }
+
+                    const x = r * sinPhi * Math.cos(theta);
+                    const y = r * cosPhi;
+                    const z = r * sinPhi * Math.sin(theta);
+
+                    // Kiểm tra khoảng cách tối thiểu chống va chạm (Anti-collision d_min >= 1.4)
+                    let collision = false;
+                    for (let j = 0; j < placedPoints.length; j++) {
+                        const p = placedPoints[j];
+                        const dx = x - p.x;
+                        const dy = y - p.y;
+                        const dz = z - p.z;
+                        if (dx * dx + dy * dy + dz * dz < minDistanceSq) {
+                            collision = true;
+                            break;
+                        }
+                    }
+
+                    if (!collision) {
+                        chosenR = r;
+                        chosenPhi = Math.acos(cosPhi);
+                        chosenTheta = theta;
+                        chosenSinPhi = sinPhi;
+                        chosenCosPhi = cosPhi;
+                        chosenX = x; chosenY = y; chosenZ = z;
+                        placed = true;
+                        break;
+                    }
+                }
+
+                // Chấp nhận vị trí an toàn dự phòng nếu vượt quá số lần thử
+                if (!placed) {
+                    let r = isOuter ? (11.5 + 2.5 * Math.random()) : (2.5 + 9.0 * Math.cbrt(Math.random()));
+                    let cosPhi = Math.max(-0.999, Math.min(0.999, 1.0 - 2.0 * ((fibIdx + 0.5) / fibN)));
+                    let sinPhi = Math.sqrt(Math.max(0.001, 1.0 - cosPhi * cosPhi));
+                    let theta = 2.0 * Math.PI * 1.61803398875 * fibIdx + Math.random();
+                    chosenR = r;
+                    chosenPhi = Math.acos(cosPhi);
+                    chosenTheta = theta;
+                    chosenSinPhi = sinPhi;
+                    chosenCosPhi = cosPhi;
+                    chosenX = r * sinPhi * Math.cos(theta);
+                    chosenY = r * cosPhi;
+                    chosenZ = r * sinPhi * Math.sin(theta);
+                }
+
+                placedPoints.push({ x: chosenX, y: chosenY, z: chosenZ });
+                cardsLayout.push({
+                    isCoverPhoto: false,
+                    isOuter: isOuter,
+                    sphereScale: sphereScale,
+                    radius: chosenR,
+                    phi: chosenPhi,
+                    theta: chosenTheta,
+                    sinPhi: chosenSinPhi,
+                    cosPhi: chosenCosPhi,
+                    gx: chosenX, gy: chosenY, gz: chosenZ
+                });
+            }
+
+            // 3. Khởi tạo Three.js Card Meshes với tỉ lệ khung hình chuẩn aspect ratio
+            for (let i = 0; i < totalCards; i++) {
+                const layout = cardsLayout[i];
+                const photoItem = (allPhotos && allPhotos[i]) ? allPhotos[i] : {
+                    id: i,
+                    url: `assets/web_photos/photo_${String(i).padStart(3, '0')}.jpg`,
+                    title: `Kỷ niệm #${i + 1}`,
+                    color: '#00f2fe',
+                    aspect: 0.7586
+                };
+
                 const dominantCol = photoItem.color || '#00f2fe';
-                const cardMesh = createPhotoCardMesh(tex, 1.10, 1.45, dominantCol);
-                const isCoverPhoto = (i < COVER_PHOTO_COUNT);
+                const aspect = photoItem.aspect || (1.10 / 1.45);
+                let cardW, cardH;
+                if (aspect >= 1.0) {
+                    cardW = 1.45;
+                    cardH = 1.45 / aspect;
+                } else {
+                    cardH = 1.45;
+                    cardW = 1.45 * aspect;
+                }
+
+                const tex = getPhotoTexture(photoItem.url);
+                const cardMesh = createPhotoCardMesh(tex, cardW, cardH, dominantCol);
 
                 let anchor = null;
-                if (isCoverPhoto) {
+                if (layout.isCoverPhoto && i < coverConfigs.length) {
                     const cfg = coverConfigs[i];
                     const hinge = (cfg.side === 'front') ? rightCoverHinge : leftCoverHinge;
                     anchor = new THREE.Object3D();
@@ -3109,30 +4004,38 @@
                     hinge.add(anchor);
                 }
 
-                // Phân bổ 316 ảnh theo hình cầu xoắn ốc Fibonacci Galaxy
-                const idxG = i - COVER_PHOTO_COUNT;
-                const numG = TOTAL_PHOTO_COUNT - COVER_PHOTO_COUNT;
-                const theta = 2 * Math.PI * idxG * goldenRatio;
-                const rGalaxy = 7.0 + 14.5 * Math.pow((idxG + 1) / numG, 0.65);
-                const phi = Math.acos(1 - 2 * (idxG + 0.5) / numG);
-                const yGalaxy = (Math.cos(phi) * 0.7 + Math.sin(idxG * 0.35) * 0.3) * (rGalaxy * 0.55);
+                // Góc xoay nhào lộn ngẫu nhiên tự do nhưng hãm tốc độ quay chậm (-0.12 đến +0.12)
+                const rotSpeedX = (Math.random() * 0.24) - 0.12;
+                const rotSpeedY = (Math.random() * 0.24) - 0.12;
+                const rotSpeedZ = (Math.random() * 0.24) - 0.12;
 
                 Object.assign(cardMesh.userData, {
                     index: i,
+                    photoId: photoItem.id,
+                    photoItem: photoItem,
                     isPhoto: true,
-                    isCoverPhoto: isCoverPhoto,
+                    isCoverPhoto: layout.isCoverPhoto,
+                    isOuter: layout.isOuter,
+                    sphereScale: layout.sphereScale,
                     anchor: anchor,
-                    galaxyPos: new THREE.Vector3(rGalaxy * Math.cos(theta), yGalaxy, rGalaxy * Math.sin(theta)),
+                    galaxyPos: new THREE.Vector3(layout.gx, layout.gy, layout.gz),
                     targetPos: new THREE.Vector3(),
-                    orbitAngle: theta,
-                    orbitRadius: rGalaxy,
-                    orbitSpeed: 0.035 + (idxG % 9) * 0.012,
+                    sinPhi: layout.sinPhi,
+                    targetSinPhi: layout.sinPhi,
+                    cosPhi: layout.cosPhi,
+                    targetCosPhi: layout.cosPhi,
+                    radius: layout.radius,
+                    targetRadius: layout.radius,
+                    orbitRadius: layout.radius,
+                    orbitAngle: layout.theta,
+                    targetOrbitAngle: layout.theta,
+                    orbitSpeed: 1.0,
                     rotX: Math.random() * Math.PI * 2,
                     rotY: Math.random() * Math.PI * 2,
                     rotZ: Math.random() * Math.PI * 2,
-                    rotSpeedX: (Math.random() - 0.5) * 0.45,
-                    rotSpeedY: (Math.random() - 0.5) * 0.45,
-                    rotSpeedZ: (Math.random() - 0.5) * 0.30,
+                    rotSpeedX: rotSpeedX,
+                    rotSpeedY: rotSpeedY,
+                    rotSpeedZ: rotSpeedZ,
                     currentRot: new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
                     dominantColor: dominantCol
                 });
@@ -3141,6 +4044,372 @@
                 allPhotoCards.push(cardMesh);
             }
         }
+        const buildSeamlessQuadCoverPhotos = createAllPhotoCards;
+        window.buildSeamlessQuadCoverPhotos = createAllPhotoCards;
+        window.createAllPhotoCards = createAllPhotoCards;
+
+        // TỰ ĐỘNG TẠO THẺ ẢNH 3D MỚI VỚI THUẬT TOÁN CHỐNG VA CHẠM VÀ CHÈN VÀO SCENE
+        function addPhotoCardToScene(photoItem) {
+            const dominantCol = photoItem.color || '#00f2fe';
+            const aspect = photoItem.aspect || (1.10 / 1.45);
+            let cardW, cardH;
+            if (aspect >= 1.0) {
+                cardW = 1.45;
+                cardH = 1.45 / aspect;
+            } else {
+                cardH = 1.45;
+                cardW = 1.45 * aspect;
+            }
+
+            const tex = getPhotoTexture(photoItem.url);
+            const cardMesh = createPhotoCardMesh(tex, cardW, cardH, dominantCol);
+
+            // Xác định tỉ lệ vỏ ngoài (25%) hay lòng khối cầu (75%)
+            const currentOuterCount = allPhotoCards.filter(c => c.userData && c.userData.isOuter).length;
+            const targetOuterCount = Math.max(COVER_PHOTO_COUNT, Math.round((allPhotoCards.length + 1) * 0.25));
+            const isOuter = currentOuterCount < targetOuterCount;
+            const sphereScale = isOuter ? 1.0 : 0.80;
+
+            const minDistance = 1.45;
+            const minDistanceSq = minDistance * minDistance;
+
+            const placedPoints = [];
+            allPhotoCards.forEach(c => {
+                const u = c.userData;
+                const r = u.radius || u.orbitRadius || 10.0;
+                const sinP = (u.sinPhi !== undefined) ? u.sinPhi : 1.0;
+                const cosP = (u.cosPhi !== undefined) ? u.cosPhi : 0.0;
+                const th = (u.orbitAngle !== undefined) ? u.orbitAngle : 0.0;
+                placedPoints.push({
+                    x: r * sinP * Math.cos(th),
+                    y: r * cosP,
+                    z: r * sinP * Math.sin(th)
+                });
+            });
+
+            let chosenR = 0, chosenSinPhi = 0, chosenCosPhi = 0, chosenTheta = 0;
+            let chosenX = 0, chosenY = 0, chosenZ = 0;
+            let placed = false;
+
+            const fibIdx = allPhotoCards.length;
+            const fibN = Math.max(1, allPhotoCards.length + 1);
+
+            for (let attempt = 0; attempt < 150; attempt++) {
+                let r = isOuter ? (11.5 + 2.5 * Math.random()) : (2.5 + 9.0 * Math.cbrt(Math.random()));
+                let cosPhi = 1.0 - 2.0 * ((fibIdx + 0.5) / fibN);
+                if (attempt > 0) {
+                    cosPhi = Math.max(-0.999, Math.min(0.999, cosPhi + (Math.random() - 0.5) * 0.2 * Math.sqrt(attempt)));
+                }
+                const sinPhi = Math.sqrt(Math.max(0.001, 1.0 - cosPhi * cosPhi));
+                let theta = 2.0 * Math.PI * 1.61803398875 * fibIdx;
+                if (attempt > 0) {
+                    theta += (Math.random() - 0.5) * 0.4 * attempt;
+                }
+
+                const x = r * sinPhi * Math.cos(theta);
+                const y = r * cosPhi;
+                const z = r * sinPhi * Math.sin(theta);
+
+                let collision = false;
+                for (let j = 0; j < placedPoints.length; j++) {
+                    const p = placedPoints[j];
+                    const dx = x - p.x;
+                    const dy = y - p.y;
+                    const dz = z - p.z;
+                    if (dx * dx + dy * dy + dz * dz < minDistanceSq) {
+                        collision = true;
+                        break;
+                    }
+                }
+
+                if (!collision) {
+                    chosenR = r;
+                    chosenTheta = theta;
+                    chosenSinPhi = sinPhi;
+                    chosenCosPhi = cosPhi;
+                    chosenX = x; chosenY = y; chosenZ = z;
+                    placed = true;
+                    break;
+                }
+            }
+
+            if (!placed) {
+                chosenR = isOuter ? (11.5 + 2.5 * Math.random()) : (2.5 + 9.0 * Math.cbrt(Math.random()));
+                let cosPhi = (Math.random() - 0.5) * 1.95;
+                chosenCosPhi = Math.max(-0.999, Math.min(0.999, cosPhi));
+                chosenSinPhi = Math.sqrt(Math.max(0.001, 1.0 - chosenCosPhi * chosenCosPhi));
+                chosenTheta = Math.random() * Math.PI * 2;
+                chosenX = chosenR * chosenSinPhi * Math.cos(chosenTheta);
+                chosenY = chosenR * chosenCosPhi;
+                chosenZ = chosenR * chosenSinPhi * Math.sin(chosenTheta);
+            }
+
+            const rotSpeedX = (Math.random() * 0.24) - 0.12;
+            const rotSpeedY = (Math.random() * 0.24) - 0.12;
+            const rotSpeedZ = (Math.random() * 0.24) - 0.12;
+
+            const newCardIdx = allPhotoCards.length;
+
+            Object.assign(cardMesh.userData, {
+                index: newCardIdx,
+                photoId: photoItem.id,
+                photoItem: photoItem,
+                isPhoto: true,
+                isCoverPhoto: false,
+                isOuter: isOuter,
+                sphereScale: sphereScale,
+                anchor: null,
+                galaxyPos: new THREE.Vector3(chosenX, chosenY, chosenZ),
+                targetPos: new THREE.Vector3(),
+                sinPhi: chosenSinPhi,
+                targetSinPhi: chosenSinPhi,
+                cosPhi: chosenCosPhi,
+                targetCosPhi: chosenCosPhi,
+                radius: chosenR,
+                targetRadius: chosenR,
+                orbitRadius: chosenR,
+                orbitAngle: chosenTheta,
+                targetOrbitAngle: chosenTheta,
+                orbitSpeed: 1.0,
+                rotX: Math.random() * Math.PI * 2,
+                rotY: Math.random() * Math.PI * 2,
+                rotZ: Math.random() * Math.PI * 2,
+                rotSpeedX: rotSpeedX,
+                rotSpeedY: rotSpeedY,
+                rotSpeedZ: rotSpeedZ,
+                currentRot: new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
+                dominantColor: dominantCol
+            });
+
+            // Bắt đầu với tỉ lệ thu nhỏ 0.01 để nở ra êm ái
+            cardMesh.scale.setScalar(0.01);
+            scene.add(cardMesh);
+            allPhotoCards.push(cardMesh);
+
+            // Tự động tái cân bằng không gian khối cầu
+            rebalancePhotoSphere();
+
+            return cardMesh;
+        }
+
+        // TỰ ĐỘNG TÁI CÂN BẰNG KHÔNG GIAN KHỐI CẦU 3D
+        function rebalancePhotoSphere() {
+            const totalCards = allPhotoCards.length;
+            if (totalCards === 0) return;
+
+            const outerTargetCount = Math.max(COVER_PHOTO_COUNT, Math.round(totalCards * 0.25));
+            const minDistance = 1.40;
+            const minDistanceSq = minDistance * minDistance;
+
+            const placedPoints = [];
+            const remainingOuterNeeded = Math.max(0, outerTargetCount - COVER_PHOTO_COUNT);
+            const remainingTotal = Math.max(1, totalCards - COVER_PHOTO_COUNT);
+            const outerStep = remainingTotal / Math.max(1, remainingOuterNeeded);
+            let outerAccum = 0.0;
+            let outerCountAssigned = COVER_PHOTO_COUNT;
+
+            for (let i = 0; i < totalCards; i++) {
+                const card = allPhotoCards[i];
+                const u = card.userData;
+
+                if (u.isCoverPhoto && i < COVER_PHOTO_COUNT) {
+                    const r = u.radius || 12.6;
+                    const sinPhi = (u.sinPhi !== undefined) ? u.sinPhi : Math.sin(Math.PI * 0.35);
+                    const cosPhi = (u.cosPhi !== undefined) ? u.cosPhi : Math.cos(Math.PI * 0.35);
+                    const theta = (u.orbitAngle !== undefined) ? u.orbitAngle : (i * Math.PI / 2);
+                    const gx = r * sinPhi * Math.cos(theta);
+                    const gy = r * cosPhi;
+                    const gz = r * sinPhi * Math.sin(theta);
+                    placedPoints.push({ x: gx, y: gy, z: gz });
+                    continue;
+                }
+
+                outerAccum += 1.0;
+                let isOuter = false;
+                if (outerAccum >= outerStep && outerCountAssigned < outerTargetCount) {
+                    isOuter = true;
+                    outerAccum -= outerStep;
+                    outerCountAssigned++;
+                }
+
+                const sphereScale = isOuter ? 1.0 : 0.80;
+                const fibIdx = i - COVER_PHOTO_COUNT;
+                const fibN = remainingTotal;
+
+                let chosenR = 0, chosenSinPhi = 0, chosenCosPhi = 0, chosenTheta = 0;
+                let placed = false;
+
+                for (let attempt = 0; attempt < 80; attempt++) {
+                    let r = isOuter ? (11.5 + 2.5 * Math.random()) : (2.5 + 9.0 * Math.cbrt(Math.random()));
+                    let cosPhi = 1.0 - 2.0 * ((fibIdx + 0.5) / fibN);
+                    if (attempt > 0) {
+                        cosPhi = Math.max(-0.999, Math.min(0.999, cosPhi + (Math.random() - 0.5) * 0.15 * Math.sqrt(attempt)));
+                    }
+                    const sinPhi = Math.sqrt(Math.max(0.001, 1.0 - cosPhi * cosPhi));
+                    let theta = 2.0 * Math.PI * 1.61803398875 * fibIdx;
+                    if (attempt > 0) {
+                        theta += (Math.random() - 0.5) * 0.3 * attempt;
+                    }
+
+                    const x = r * sinPhi * Math.cos(theta);
+                    const y = r * cosPhi;
+                    const z = r * sinPhi * Math.sin(theta);
+
+                    let collision = false;
+                    for (let j = 0; j < placedPoints.length; j++) {
+                        const p = placedPoints[j];
+                        const dx = x - p.x;
+                        const dy = y - p.y;
+                        const dz = z - p.z;
+                        if (dx * dx + dy * dy + dz * dz < minDistanceSq) {
+                            collision = true;
+                            break;
+                        }
+                    }
+
+                    if (!collision) {
+                        chosenR = r;
+                        chosenSinPhi = sinPhi;
+                        chosenCosPhi = cosPhi;
+                        chosenTheta = theta;
+                        placedPoints.push({ x: x, y: y, z: z });
+                        placed = true;
+                        break;
+                    }
+                }
+
+                if (!placed) {
+                    let r = isOuter ? (11.5 + 2.5 * Math.random()) : (2.5 + 9.0 * Math.cbrt(Math.random()));
+                    let cosPhi = Math.max(-0.999, Math.min(0.999, 1.0 - 2.0 * ((fibIdx + 0.5) / fibN)));
+                    let sinPhi = Math.sqrt(Math.max(0.001, 1.0 - cosPhi * cosPhi));
+                    let theta = 2.0 * Math.PI * 1.61803398875 * fibIdx;
+                    chosenR = r;
+                    chosenSinPhi = sinPhi;
+                    chosenCosPhi = cosPhi;
+                    chosenTheta = theta;
+                    placedPoints.push({
+                        x: r * sinPhi * Math.cos(theta),
+                        y: r * cosPhi,
+                        z: r * sinPhi * Math.sin(theta)
+                    });
+                }
+
+                u.isOuter = isOuter;
+                u.sphereScale = sphereScale;
+                u.targetRadius = chosenR;
+                u.targetSinPhi = chosenSinPhi;
+                u.targetCosPhi = chosenCosPhi;
+                u.targetOrbitAngle = chosenTheta;
+            }
+        }
+
+        // HÀM XÓA ẢNH KHỎI MẢNG ALLPHOTOS, HỦY TÀI NGUYÊN CARDMESH VÀ TÁI CÂN BẰNG KHỐI CẦU
+        function deletePhoto(id) {
+            if (id === undefined || id === null) return;
+            const strId = String(id);
+
+            // 1. Tìm ảnh trong mảng allPhotos
+            const pIdx = allPhotos.findIndex(p => String(p.id) === strId);
+            if (pIdx === -1) {
+                console.warn("Không tìm thấy ảnh ID:", id);
+                return;
+            }
+
+            const photoItem = allPhotos[pIdx];
+
+            // 2. Lưu blacklist nếu là ảnh manifest, hoặc xóa khỏi IndexedDB nếu là custom photo
+            if (photoItem.isCustom) {
+                deleteCustomPhotoFromDB(photoItem.id);
+            } else {
+                addPhotoToBlacklist(photoItem.id);
+            }
+
+            // 3. Xóa ảnh khỏi mảng allPhotos
+            allPhotos.splice(pIdx, 1);
+            window.allPhotos = allPhotos;
+
+            // 4. Tìm và hủy tài nguyên cardMesh tương ứng trong Scene & allPhotoCards
+            let cardIdx = allPhotoCards.findIndex(c => c.userData && String(c.userData.photoId) === strId);
+            if (cardIdx === -1 && pIdx < allPhotoCards.length) {
+                cardIdx = pIdx;
+            }
+
+            if (cardIdx !== -1 && cardIdx < allPhotoCards.length) {
+                const card = allPhotoCards[cardIdx];
+
+                // Gỡ anchor khỏi bản lề bìa sách nếu có
+                if (card.userData && card.userData.anchor && card.userData.anchor.parent) {
+                    card.userData.anchor.parent.remove(card.userData.anchor);
+                }
+
+                // Giải phóng bộ nhớ Geometries & Materials
+                if (card.userData.backplate && card.userData.backplate.geometry) {
+                    card.userData.backplate.geometry.dispose();
+                }
+                if (card.userData.frameLine) {
+                    if (card.userData.frameLine.geometry) card.userData.frameLine.geometry.dispose();
+                    if (card.userData.frameLine.material) card.userData.frameLine.material.dispose();
+                }
+                if (card.userData.photoPlane) {
+                    if (card.userData.photoPlane.geometry) card.userData.photoPlane.geometry.dispose();
+                    if (card.userData.photoPlane.material) {
+                        if (photoItem.isCustom && card.userData.photoPlane.material.map) {
+                            card.userData.photoPlane.material.map.dispose();
+                        }
+                        card.userData.photoPlane.material.dispose();
+                    }
+                }
+                if (card.userData.glowOrb) {
+                    if (card.userData.glowOrb.geometry) card.userData.glowOrb.geometry.dispose();
+                    if (card.userData.glowOrb.material) card.userData.glowOrb.material.dispose();
+                }
+
+                // Gỡ bỏ mesh khỏi Scene
+                if (card.parent) card.parent.remove(card);
+
+                // Loại bỏ khỏi mảng allPhotoCards
+                allPhotoCards.splice(cardIdx, 1);
+            }
+
+            // Cập nhật lại chỉ số index cho toàn bộ các cardMesh còn lại
+            allPhotoCards.forEach((c, i) => {
+                c.userData.index = i;
+            });
+
+            // 5. Cập nhật huy hiệu số lượng ảnh
+            const badge = document.getElementById('photo-count-badge');
+            if (badge) badge.textContent = allPhotos.length;
+            TOTAL_PHOTO_COUNT = allPhotos.length;
+            window.TOTAL_PHOTO_COUNT = allPhotos.length;
+
+            // Điều chỉnh selectedPhotoIndex nếu đang vượt quá độ dài mới
+            if (allPhotoCards.length > 0) {
+                selectedPhotoIndex = selectedPhotoIndex % allPhotoCards.length;
+            } else {
+                selectedPhotoIndex = 0;
+            }
+
+            if (FSM.currentState === STATES.FOCUS_PHOTO) {
+                if (allPhotoCards.length > 0) {
+                    updateHeroFocusedTexture();
+                } else {
+                    FSM.setTarget(STATES.GALAXY_BURST);
+                }
+            }
+
+            // 6. Tự động tái cân bằng không gian khối cầu 3D
+            rebalancePhotoSphere();
+
+            // 7. Làm mới Kho ảnh Modal nếu đang mở
+            const modal = document.getElementById('photo-modal');
+            if (modal && modal.classList.contains('active')) {
+                openPhotoModal();
+            }
+        }
+
+        window.deletePhoto = deletePhoto;
+        window.addPhotoCardToScene = addPhotoCardToScene;
+        window.rebalancePhotoSphere = rebalancePhotoSphere;
 
         function createChibiStethoscope() {
             const group = new THREE.Group();
@@ -3275,6 +4544,7 @@
             const matBlack = new THREE.MeshStandardMaterial({ color: 0x111116, roughness: 0.5 });
 
             const base = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.08, 12), matMint);
+            base.scale.set(1, 1, 0.55);
             group.add(base);
 
             const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.55, 8), matMint);
@@ -3350,15 +4620,15 @@
             const bevel = BOOK.bevel;
 
             const propsConfigs = [
-                { create: createChibiMicroscope, side: 'front', x: 0.95, y: 0.15, z: T + bevel + 0.12, rotY: 0, rotZ: 0.15 },
-                { create: createChibiStethoscope, side: 'front', x: 3.65, y: 0.15, z: T + bevel + 0.12, rotY: 0, rotZ: -0.2 },
-                { create: createChibiLabCoat, side: 'front', x: 2.3, y: 2.45, z: T + bevel + 0.12, rotY: 0, rotZ: 0.0 },
-                { create: createChibiTestTubeRack, side: 'front', x: 2.3, y: -2.5, z: T + bevel + 0.12, rotY: 0, rotZ: 0.0 },
+                { create: createChibiMicroscope, side: 'front', x: 0.95, y: 0.15, z: T + bevel + 0.02, rotY: 0, rotZ: 0.15 },
+                { create: createChibiStethoscope, side: 'front', x: 3.65, y: 0.15, z: T + bevel + 0.02, rotY: 0, rotZ: -0.2 },
+                { create: createChibiLabCoat, side: 'front', x: 2.3, y: 2.45, z: T + bevel + 0.02, rotY: 0, rotZ: 0.0 },
+                { create: createChibiTestTubeRack, side: 'front', x: 2.3, y: -2.5, z: T + bevel + 0.02, rotY: 0, rotZ: 0.0 },
 
-                { create: createChibiMagnifyingGlass, side: 'back', x: 1.2, y: 0.0, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: -0.3 },
-                { create: createChibiNotebook, side: 'back', x: 3.4, y: 0.0, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: 0.2 },
-                { create: createChibiStethoscope, side: 'back', x: 2.3, y: 2.4, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: 0.1 },
-                { create: createChibiLabCoat, side: 'back', x: 2.3, y: -2.4, z: -T - bevel - 0.12, rotY: Math.PI, rotZ: -0.8 }
+                { create: createChibiMagnifyingGlass, side: 'back', x: 1.2, y: 0.0, z: -T - bevel - 0.02, rotY: Math.PI, rotZ: -0.3 },
+                { create: createChibiNotebook, side: 'back', x: 3.4, y: 0.0, z: -T - bevel - 0.02, rotY: Math.PI, rotZ: 0.2 },
+                { create: createChibiStethoscope, side: 'back', x: 2.3, y: 2.4, z: -T - bevel - 0.02, rotY: Math.PI, rotZ: 0.1 },
+                { create: createChibiLabCoat, side: 'back', x: 2.3, y: -2.4, z: -T - bevel - 0.02, rotY: Math.PI, rotZ: -0.8 }
             ];
 
             propsConfigs.forEach((cfg, idx) => {
@@ -3383,7 +4653,10 @@
                     orbitRadius: rGalaxy,
                     orbitSpeed: 0.09 + (idx % 2) * 0.04,
                     rotSpeedX: 0.6 + Math.random() * 0.6,
-                    rotSpeedY: 0.8 + Math.random() * 0.6
+                    rotSpeedY: 0.8 + Math.random() * 0.6,
+                    currentRot: new THREE.Euler(0, cfg.rotY, cfg.rotZ),
+                    initRotY: cfg.rotY,
+                    initRotZ: cfg.rotZ
                 };
 
                 scene.add(mesh);
@@ -3415,6 +4688,39 @@
                 if (e.pointerType === 'mouse') {
                     onPointerDown(e);
                 }
+            });
+
+            // Pointermove cho hover thẻ ảnh trên desktop
+            window.addEventListener('pointermove', (e) => {
+                if (e.pointerType === 'mouse') {
+                    if (e.target?.closest?.('#fsm-ui') || e.target?.closest?.('#ai-hud') || e.target?.closest?.('#bgm-ui') || e.target?.closest?.('#photo-modal') || e.target?.closest?.('#gateway-overlay')) {
+                        hoveredCardIndex = -1;
+                        if (renderer?.domElement) renderer.domElement.style.cursor = 'default';
+                        return;
+                    }
+                    if (FSM.currentState === STATES.GALAXY_BURST || FSM.currentState === STATES.FOCUS_PHOTO) {
+                        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                        raycaster.setFromCamera(mouse, camera);
+                        const intersects = raycaster.intersectObjects(allPhotoCards, true);
+                        if (intersects.length > 0) {
+                            let top = intersects[0].object;
+                            while (top.parent && !top.userData.isPhoto) top = top.parent;
+                            if (top.userData.isPhoto) {
+                                hoveredCardIndex = top.userData.index;
+                                if (renderer?.domElement) renderer.domElement.style.cursor = 'pointer';
+                                return;
+                            }
+                        }
+                    }
+                    hoveredCardIndex = -1;
+                    if (renderer?.domElement) renderer.domElement.style.cursor = 'default';
+                }
+            }, { passive: true });
+
+            window.addEventListener('pointerleave', () => {
+                hoveredCardIndex = -1;
+                if (renderer?.domElement) renderer.domElement.style.cursor = 'default';
             });
 
             // MULTI-TOUCH GESTURE CONTROLS CHO MOBILE
@@ -3614,44 +4920,50 @@
             }
         }
 
+        const HAND_CONNECTIONS = [
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [5,9],[9,10],[10,11],[11,12],
+            [9,13],[13,14],[14,15],[15,16],
+            [13,17],[17,18],[18,19],[19,20],
+            [0,17]
+        ];
+
         function drawNeonHandPiP(lm) {
             const w = handCanvas.width;
             const h = handCanvas.height;
-
-            const conns = [
-                [0,1],[1,2],[2,3],[3,4],
-                [0,5],[5,6],[6,7],[7,8],
-                [5,9],[9,10],[10,11],[11,12],
-                [9,13],[13,14],[14,15],[15,16],
-                [13,17],[17,18],[18,19],[19,20],
-                [0,17]
-            ];
 
             handCtx.strokeStyle = '#00ff66';
             handCtx.lineWidth = 2.5;
             handCtx.shadowColor = '#00ff66';
             handCtx.shadowBlur = 8;
 
-            conns.forEach(([a, b]) => {
+            const connCount = HAND_CONNECTIONS.length;
+            for (let i = 0; i < connCount; i++) {
+                const conn = HAND_CONNECTIONS[i];
                 handCtx.beginPath();
-                handCtx.moveTo(lm[a].x * w, lm[a].y * h);
-                handCtx.lineTo(lm[b].x * w, lm[b].y * h);
+                handCtx.moveTo(lm[conn[0]].x * w, lm[conn[0]].y * h);
+                handCtx.lineTo(lm[conn[1]].x * w, lm[conn[1]].y * h);
                 handCtx.stroke();
-            });
+            }
 
             handCtx.fillStyle = '#ffffff';
-            lm.forEach((pt, i) => {
+            const lmCount = lm.length;
+            for (let i = 0; i < lmCount; i++) {
+                const pt = lm[i];
                 handCtx.beginPath();
                 handCtx.arc(pt.x * w, pt.y * h, (i === 4 || i === 8) ? 4.5 : 2.5, 0, Math.PI * 2);
                 handCtx.fill();
-            });
+            }
         }
 
         function triggerPhotoGrab() {
             let closestIdx = -1;
             let minScreenDist = Infinity;
 
-            allPhotoCards.forEach((card, idx) => {
+            const total = allPhotoCards.length;
+            for (let idx = 0; idx < total; idx++) {
+                const card = allPhotoCards[idx];
                 card.getWorldPosition(_v1);
                 _v1.project(camera);
                 if (_v1.z < 1.0) {
@@ -3661,7 +4973,7 @@
                         closestIdx = idx;
                     }
                 }
-            });
+            }
 
             if (closestIdx >= 0) {
                 triggerScreenFlash();
@@ -3766,6 +5078,30 @@
             }
         }
 
+        // Helper cập nhật nhóm sao quang học Zero-Allocation (không cấp phát closure mỗi khung hình)
+        function updateStarGroup(group, dt, elapsed, cur) {
+            const count = group.length;
+            for (let i = 0; i < count; i++) {
+                const st = group[i];
+                st.theta += st.speed * dt * (cur === STATES.FOCUS_PHOTO ? 0.3 : 1.0);
+                const expand = THREE.MathUtils.lerp(0.8, 1.5, FSM.galaxyProgressLerp);
+                const curR = st.rad * expand;
+
+                st.mesh.position.x = curR * Math.sin(st.phi) * Math.cos(st.theta);
+                st.mesh.position.y = curR * Math.sin(st.phi) * Math.sin(st.theta) * 0.9;
+                st.mesh.position.z = curR * Math.cos(st.phi);
+
+                st.mesh.rotation.x += st.rotSpeedX * dt;
+                st.mesh.rotation.y += st.rotSpeedY * dt;
+
+                // Kích thước ngôi sao theo bán kính (Radial Sizing)
+                const rFactor = THREE.MathUtils.clamp(curR / 18.0, 0.0, 1.0);
+                const starRadialScale = 1.5 - 0.7 * rFactor;
+                const pulse = 1.0 + 0.35 * Math.sin(elapsed * 3.5 + st.pulsePhase);
+                st.mesh.scale.setScalar((cur === STATES.FOCUS_PHOTO ? 0.55 : 0.8) * pulse * starRadialScale);
+            }
+        }
+
         // ====================================================================
         // 11. CHOREOGRAPHY ANIMATION LOOP
         // ====================================================================
@@ -3780,25 +5116,38 @@
             // HAND STEERING (Từ demo4): Di chuyển tay lệch tâm để xoay mô hình theo hướng đó
             if (STATE.hand.detected && webcamRunning) {
                 const th = 0.20; // Deadzone
-                const s = 1.4;   // Tốc độ xoay
+                // Ticket 04: Calibrate gesture steering sensitivity with 40% damping (0.60x speed) in FOCUS_PHOTO
+                const steerDamping = (FSM.targetState === STATES.FOCUS_PHOTO) ? 0.60 : 1.0;
+                const s = 1.4 * steerDamping;   // Tốc độ xoay (damped by 40% in FOCUS_PHOTO)
                 if (STATE.hand.x > th) modelRotation.y -= s * dt * (STATE.hand.x - th);
                 else if (STATE.hand.x < -th) modelRotation.y -= s * dt * (STATE.hand.x + th);
 
                 if (STATE.hand.y < -th) modelRotation.x += s * dt * (-STATE.hand.y - th);
                 else if (STATE.hand.y > th) modelRotation.x -= s * dt * (STATE.hand.y - th);
 
-                modelRotation.x = THREE.MathUtils.clamp(modelRotation.x, -0.6, 0.8);
+                modelRotation.x = THREE.MathUtils.clamp(modelRotation.x, -3.2, 3.2);
             } else {
                 if (FSM.targetState === STATES.BOOK_AJAR) {
                     modelRotation.x = THREE.MathUtils.lerp(modelRotation.x, 0.18, dt * 2.0);
                     modelRotation.y += 0.06 * dt; // Quay nhẹ ngắm sách mở hờ
                 } else if (FSM.targetState === STATES.GALAXY_BURST) {
-                    modelRotation.y += 0.12 * dt; // Tinh cầu tự quay êm dịu
+                    modelRotation.y += 0.12 * dt; // Tinh cầu tự quay êm dịu (1.0x master drift)
+                } else if (FSM.targetState === STATES.FOCUS_PHOTO) {
+                    modelRotation.y += 0.05 * dt; // Nền trôi êm dịu tinh tế khi ngắm ảnh
                 }
             }
 
             albumRoot.rotation.x = THREE.MathUtils.lerp(albumRoot.rotation.x, modelRotation.x, dt * 4.0);
             albumRoot.rotation.y = THREE.MathUtils.lerp(albumRoot.rotation.y, modelRotation.y, dt * 4.0);
+
+            // Feature: 4K Stationary Chromatic Skydome - Ticket 01: Decoupled Stationary Skydome World Frame (Locked [0, 0, 0])
+            if (skydomeMesh) {
+                skydomeMesh.rotation.set(0, 0, 0);
+                if (skydomeMesh.material) {
+                    skydomeMesh.material.opacity = FSM.skydomeDimLerp;
+                    skydomeMesh.userData.intensity = FSM.skydomeDimLerp;
+                }
+            }
 
             controls.update();
             FSM.update(dt);
@@ -3808,19 +5157,23 @@
             let targetGalaxy = 0.0;
             let targetMeshOpac = 1.0;
             let targetFocusDim = 1.0;
+            let targetSkydomeDim = 1.0;
 
             const cur = FSM.targetState;
 
             if (cur === STATES.BOOK_AJAR) {
                 targetOpen = 0.0; targetBurst = 0.0; targetGalaxy = 0.0; targetMeshOpac = 1.0;
+                targetSkydomeDim = 1.0;
                 targetCameraDistance = 18.5; // Sách mở hờ: camera gần lại ấm áp
             } else if (cur === STATES.GALAXY_BURST) {
                 // 3 TRONG 1: Mở 160 độ, bung sáng, tạo tinh cầu đặc đồng thời
                 targetOpen = 1.0; targetBurst = 1.0; targetGalaxy = 1.0; targetMeshOpac = 0.0;
+                targetSkydomeDim = 1.0;
                 targetCameraDistance = 37.0; // Lùi xa thêm 50% mở rộng tầm nhìn toàn cảnh ngân hà 324 ảnh
             } else if (cur === STATES.FOCUS_PHOTO) {
                 targetOpen = 1.0; targetBurst = 1.0; targetGalaxy = 1.0; targetMeshOpac = 0.0;
                 targetFocusDim = 0.60;
+                targetSkydomeDim = 0.78; // Ticket 04: Dim skydome by 22% (0.75-0.80) in Hero Focus
                 targetCameraDistance = 22.0;
             }
 
@@ -3842,6 +5195,7 @@
             FSM.burstProgressLerp = THREE.MathUtils.lerp(FSM.burstProgressLerp, targetBurst, dt * 3.0);
             FSM.galaxyProgressLerp = THREE.MathUtils.lerp(FSM.galaxyProgressLerp, targetGalaxy, dt * 2.8);
             FSM.bookMeshOpacityLerp = THREE.MathUtils.lerp(FSM.bookMeshOpacityLerp, targetMeshOpac, dt * 3.2);
+            FSM.skydomeDimLerp = THREE.MathUtils.lerp(FSM.skydomeDimLerp, targetSkydomeDim, dt * 3.5);
 
             // Góc mở sách: từ 30 độ (mở hờ) sang 160 độ (mở bung)
             const openRad = THREE.MathUtils.lerp(BOOK.ajarAngleRad / 2, BOOK.maxOpenRad / 2, FSM.openProgressLerp);
@@ -3866,7 +5220,7 @@
                 innerSparksLight.intensity = (0.5 + FSM.openProgressLerp * 5.5) * FSM.bookMeshOpacityLerp;
             }
 
-            FSM.galaxyRotAngle += 0.16 * dt;
+            FSM.galaxyRotAngle += (cur === STATES.FOCUS_PHOTO ? 0.06 : 0.16) * dt;
 
             if (morphShaderMat) {
                 morphShaderMat.uniforms.uOpenRatio.value = FSM.openProgressLerp;
@@ -3888,7 +5242,18 @@
                 );
             }
 
-            heroGiantHearts.forEach((h, idx) => {
+            if (miniStardustMat) {
+                miniStardustMat.uniforms.uTime.value = elapsed;
+                const fade = Math.max(0.0, 1.0 - THREE.MathUtils.smoothstep(FSM.galaxyProgressLerp, 0.0, 0.08));
+                miniStardustMat.uniforms.uFade.value = fade;
+                if (miniStardustMesh) {
+                    miniStardustMesh.visible = (fade > 0.001);
+                }
+            }
+
+            const heartCount = heroGiantHearts.length;
+            for (let idx = 0; idx < heartCount; idx++) {
+                const h = heroGiantHearts[idx];
                 h.angle += h.speed * dt * (cur === STATES.FOCUS_PHOTO ? 0.3 : 1.0);
                 const expand = THREE.MathUtils.lerp(1.0, 1.85, FSM.galaxyProgressLerp);
                 const r = h.baseRad * expand;
@@ -3901,51 +5266,53 @@
                 h.mesh.rotation.y += 1.0 * dt;
 
                 const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.85 : (0.8 + FSM.galaxyProgressLerp * 0.85);
-                h.mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), dt * 4.0);
-            });
+                h.mesh.scale.setScalar(THREE.MathUtils.lerp(h.mesh.scale.x, targetScale, dt * 4.0));
+            }
 
-            const updateStarGroup = (group) => {
-                group.forEach(st => {
-                    st.theta += st.speed * dt * (cur === STATES.FOCUS_PHOTO ? 0.3 : 1.0);
-                    const expand = THREE.MathUtils.lerp(0.8, 1.5, FSM.galaxyProgressLerp);
-                    const curR = st.rad * expand;
+            updateStarGroup(stars3Point, dt, elapsed, cur);
+            updateStarGroup(stars4Point, dt, elapsed, cur);
+            updateStarGroup(stars5Point, dt, elapsed, cur);
 
-                    st.mesh.position.x = curR * Math.sin(st.phi) * Math.cos(st.theta);
-                    st.mesh.position.y = curR * Math.sin(st.phi) * Math.sin(st.theta) * 0.9;
-                    st.mesh.position.z = curR * Math.cos(st.phi);
-
-                    st.mesh.rotation.x += st.rotSpeedX * dt;
-                    st.mesh.rotation.y += st.rotSpeedY * dt;
-
-                    // Kích thước ngôi sao theo bán kính (Radial Sizing)
-                    const rFactor = THREE.MathUtils.clamp(curR / 18.0, 0.0, 1.0);
-                    const starRadialScale = 1.5 - 0.7 * rFactor;
-                    const pulse = 1.0 + 0.35 * Math.sin(elapsed * 3.5 + st.pulsePhase);
-                    st.mesh.scale.setScalar((cur === STATES.FOCUS_PHOTO ? 0.55 : 0.8) * pulse * starRadialScale);
-                });
-            };
-
-            updateStarGroup(stars3Point);
-            updateStarGroup(stars4Point);
-            updateStarGroup(stars5Point);
-
-            // CẬP NHẬT TOÀN BỘ 324 THẺ ẢNH (TUMBLING RANDOM, KHÔNG CHẤM ĐEN, ĐỐM SÁNG SẮC MÀU)
-            allPhotoCards.forEach((card, idx) => {
+            // CẬP NHẬT TOÀN BỘ THẺ ẢNH (VOLUMETRIC ANTI-COLLISION, NHÀO LỘN CHẬM RÃI, KHÔNG VA CHẠM) - ZERO ALLOCATION
+            const cardCount = allPhotoCards.length;
+            for (let idx = 0; idx < cardCount; idx++) {
+                const card = allPhotoCards[idx];
                 const u = card.userData;
                 const isSelected = (cur === STATES.FOCUS_PHOTO && idx === selectedPhotoIndex);
 
-                // Tọa độ thế giới trong tinh cầu xoay
-                const curOrbitAngle = u.orbitAngle + FSM.galaxyRotAngle * (u.orbitSpeed * 2.2);
-                const ox = Math.cos(curOrbitAngle) * u.orbitRadius;
-                const oz = Math.sin(curOrbitAngle) * u.orbitRadius;
-                const oy = u.galaxyPos.y + Math.sin(elapsed * 1.3 + idx * 0.3) * 0.45;
-                const galaxyWorldPos = _v2.set(ox, oy, oz);
+                // Tái cân bằng mượt mà (smooth rebalance lerp) không tạo rác bộ nhớ (Zero-Allocation)
+                if (u.targetRadius !== undefined && Math.abs(u.radius - u.targetRadius) > 0.001) {
+                    u.radius = THREE.MathUtils.lerp(u.radius, u.targetRadius, dt * 2.5);
+                }
+                if (u.targetSinPhi !== undefined && Math.abs(u.sinPhi - u.targetSinPhi) > 0.001) {
+                    u.sinPhi = THREE.MathUtils.lerp(u.sinPhi, u.targetSinPhi, dt * 2.5);
+                }
+                if (u.targetCosPhi !== undefined && Math.abs(u.cosPhi - u.targetCosPhi) > 0.001) {
+                    u.cosPhi = THREE.MathUtils.lerp(u.cosPhi, u.targetCosPhi, dt * 2.5);
+                }
+                if (u.targetOrbitAngle !== undefined) {
+                    let dAngle = (u.targetOrbitAngle - u.orbitAngle) % (Math.PI * 2);
+                    if (dAngle > Math.PI) dAngle -= Math.PI * 2;
+                    if (dAngle < -Math.PI) dAngle += Math.PI * 2;
+                    if (Math.abs(dAngle) > 0.001) {
+                        u.orbitAngle += dAngle * dt * 2.5;
+                    }
+                }
 
-                // Cập nhật góc quay ngẫu nhiên nhiều hướng (Tumbling tự do như bay loạn xạ)
+                // Tọa độ thế giới trong tinh cầu xoay (khóa đồng bộ 1.0x cùng albumRoot và stardust particles)
+                const curOrbitAngle = u.orbitAngle + FSM.galaxyRotAngle;
+                const cardRadius = u.radius || u.orbitRadius;
+                const rSinPhi = cardRadius * (u.sinPhi !== undefined ? u.sinPhi : 1.0);
+                const ox = rSinPhi * Math.cos(curOrbitAngle);
+                const oz = rSinPhi * Math.sin(curOrbitAngle);
+                const oy = cardRadius * (u.cosPhi !== undefined ? u.cosPhi : 0.0) + Math.sin(elapsed * 1.0 + idx * 0.4) * 0.08;
+                const galaxyWorldPos = _v2.set(ox, oy, oz).applyQuaternion(albumRoot.quaternion).add(albumRoot.position);
+
+                // Cập nhật góc quay ngẫu nhiên nhiều hướng (Tumbling tự do nhưng êm ái -0.12..+0.12 rad/s)
                 u.currentRot.x += u.rotSpeedX * dt;
                 u.currentRot.y += u.rotSpeedY * dt;
                 u.currentRot.z += u.rotSpeedZ * dt;
-                const galaxyWorldQuat = _q1.setFromEuler(u.currentRot);
+                const galaxyWorldQuat = _q1.setFromEuler(u.currentRot).premultiply(albumRoot.quaternion);
 
                 let bookWorldPos = _v3;
                 let bookWorldQuat = _q2;
@@ -3954,12 +5321,12 @@
                     u.anchor.getWorldPosition(bookWorldPos);
                     u.anchor.getWorldQuaternion(bookWorldQuat);
                 } else {
-                    // Khi sách mở hờ: Các ảnh ngân hà thu lại thành đốm sao bay lượn nhẹ quanh sách
+                    // Khi sách mở hờ: Các ảnh ngân hà thu lại thành đốm sao bay lượn nhẹ quanh sách (R = 3.8 .. 5.2)
                     const orbAngle = u.orbitAngle + elapsed * 0.15 + (idx % 10) * 0.2;
-                    const rOrb = 2.4 + (idx % 7) * 0.25;
+                    const rOrb = 3.8 + (idx % 8) * 0.20;
                     const yOrb = ((idx % 21) - 10) * 0.24;
-                    bookWorldPos.set(Math.cos(orbAngle) * rOrb, yOrb, Math.sin(orbAngle) * rOrb);
-                    bookWorldQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), orbAngle);
+                    bookWorldPos.set(Math.cos(orbAngle) * rOrb, yOrb, Math.sin(orbAngle) * rOrb).applyQuaternion(albumRoot.quaternion).add(albumRoot.position);
+                    bookWorldQuat.setFromAxisAngle(_upVec, orbAngle).premultiply(albumRoot.quaternion);
                 }
 
                 const tMorph = THREE.MathUtils.smoothstep(FSM.galaxyProgressLerp, 0.0, 1.0);
@@ -3984,10 +5351,24 @@
                     }
                 }
 
+                // Cập nhật độ sáng viền neon (frameLine): Tinh tế (0.20) khi trôi dạt, sáng rực (1.0) khi hover hoặc Hero Focus
+                const isHovered = (idx === hoveredCardIndex);
+                const isHeroFocus = (cur === STATES.FOCUS_PHOTO && idx === selectedPhotoIndex);
+                const targetOutlineOpacity = (isHeroFocus || isHovered) ? 1.0 : 0.20;
+
+                if (u.frameLine && u.frameLine.material) {
+                    u.frameLine.material.opacity = THREE.MathUtils.lerp(
+                        u.frameLine.material.opacity,
+                        targetOutlineOpacity,
+                        dt * 8.0
+                    );
+                }
+
                 if (isSelected) {
                     card.visible = true;
                     if (u.backplate) u.backplate.visible = true;
                     if (u.photoPlane) u.photoPlane.visible = true;
+                    if (u.frameLine) u.frameLine.visible = true;
                     if (u.glowOrb) u.glowOrb.visible = false;
 
                     const camDir = _v1;
@@ -3996,44 +5377,61 @@
 
                     card.position.lerp(u.targetPos, dt * 6.5);
                     card.quaternion.slerp(camera.quaternion, dt * 7.5);
-                    card.scale.lerp(new THREE.Vector3(1.35, 1.35, 1.35), dt * 6.0);
+                    card.scale.setScalar(THREE.MathUtils.lerp(card.scale.x, 1.35, dt * 6.0));
                 } else {
                     card.visible = true;
                     u.targetPos.lerpVectors(bookWorldPos, galaxyWorldPos, tMorph);
                     card.position.lerp(u.targetPos, dt * 6.0);
 
-                    _q2.slerpQuaternions(bookWorldQuat, galaxyWorldQuat, tMorph);
-                    card.quaternion.slerp(_q2, dt * 6.0);
+                    _q3.slerpQuaternions(bookWorldQuat, galaxyWorldQuat, tMorph);
+                    card.quaternion.slerp(_q3, dt * 6.0);
 
                     const baseScale = u.isCoverPhoto ? 1.0 : (0.08 + tMorph * 0.92);
-                    const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.45 : (baseScale * (0.85 + 0.15 * tMorph));
-                    card.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), dt * 6.0);
+                    const sphereScale = u.sphereScale || 1.0;
+                    const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.45 : (baseScale * sphereScale);
+                    card.scale.setScalar(THREE.MathUtils.lerp(card.scale.x, targetScale, dt * 6.0));
                 }
-            });
+            }
 
-            // CẬP NHẬT CHIBI PROPS (Y KHOA)
-            chibiProps.forEach((prop, idx) => {
+            // CẬP NHẬT CHIBI PROPS (Y KHOA) - ZERO ALLOCATION
+            const propCount = chibiProps.length;
+            for (let idx = 0; idx < propCount; idx++) {
+                const prop = chibiProps[idx];
                 const u = prop.userData;
 
                 u.anchor.getWorldPosition(_v3);
                 u.anchor.getWorldQuaternion(_q2);
 
-                const curOrbitAngle = u.orbitAngle + FSM.galaxyRotAngle * (u.orbitSpeed * 2.2);
-                const ox = Math.cos(curOrbitAngle) * u.orbitRadius;
-                const oz = Math.sin(curOrbitAngle) * u.orbitRadius;
-                const oy = u.galaxyPos.y + Math.sin(elapsed * 1.4 + idx * 0.5) * 0.4;
-                const galaxyWorldPos = _v2.set(ox, oy, oz);
-
                 const tMorph = THREE.MathUtils.smoothstep(FSM.galaxyProgressLerp, 0.0, 1.0);
-                u.targetPos.lerpVectors(_v3, galaxyWorldPos, tMorph);
-                prop.position.lerp(u.targetPos, dt * 6.0);
 
-                prop.rotation.x += u.rotSpeedX * dt;
-                prop.rotation.y += u.rotSpeedY * dt;
+                if (tMorph < 0.05) {
+                    // BOOK_AJAR: Khóa cứng vị trí & góc quay vào anchor bìa sách, triệt tiêu quay nhào lộn
+                    prop.position.copy(_v3);
+                    prop.quaternion.copy(_q2);
+                    u.currentRot.set(0, u.initRotY || 0, u.initRotZ || 0);
+                    u.targetPos.copy(_v3);
+                } else {
+                    // GALAXY_BURST: Lerp vị trí và Slerp góc quay mượt mà sang quỹ đạo ngân hà, khôi phục nhào lộn
+                    const curOrbitAngle = u.orbitAngle + FSM.galaxyRotAngle * (u.orbitSpeed * 2.2);
+                    const ox = Math.cos(curOrbitAngle) * u.orbitRadius;
+                    const oz = Math.sin(curOrbitAngle) * u.orbitRadius;
+                    const oy = u.galaxyPos.y + Math.sin(elapsed * 1.4 + idx * 0.5) * 0.4;
+                    const galaxyWorldPos = _v2.set(ox, oy, oz).applyQuaternion(albumRoot.quaternion).add(albumRoot.position);
+
+                    u.currentRot.x += u.rotSpeedX * dt;
+                    u.currentRot.y += u.rotSpeedY * dt;
+                    const galaxyWorldQuat = _q1.setFromEuler(u.currentRot).premultiply(albumRoot.quaternion);
+
+                    u.targetPos.lerpVectors(_v3, galaxyWorldPos, tMorph);
+                    prop.position.lerp(u.targetPos, dt * 6.0);
+
+                    _q3.slerpQuaternions(_q2, galaxyWorldQuat, tMorph);
+                    prop.quaternion.slerp(_q3, dt * 6.0);
+                }
 
                 const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.55 : (0.75 + tMorph * 0.25);
-                prop.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), dt * 4.0);
-            });
+                prop.scale.setScalar(THREE.MathUtils.lerp(prop.scale.x, targetScale, dt * 4.0));
+            }
 
             composer.render();
         }
