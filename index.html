@@ -145,6 +145,68 @@
             transform: scaleX(-1);
         }
 
+        /* [TICKET 05]: Neon HUD Badges for Gestures */
+        .ai-gesture-badge {
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            transform: translateX(-50%) translateY(6px) scale(0.9);
+            background: rgba(4, 10, 26, 0.92);
+            border: 1.5px solid #00f2fe;
+            box-shadow: 0 0 14px rgba(0, 242, 254, 0.7), inset 0 0 8px rgba(0, 242, 254, 0.35);
+            border-radius: 12px;
+            padding: 3px 8px;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10;
+            text-shadow: 0 0 6px rgba(0, 242, 254, 0.9);
+            max-width: 95%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ai-gesture-badge.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0) scale(1.0);
+            animation: neonBadgePulse 0.8s infinite alternate ease-in-out;
+        }
+
+        @keyframes neonBadgePulse {
+            0% { box-shadow: 0 0 10px rgba(0, 242, 254, 0.6), inset 0 0 6px rgba(0, 242, 254, 0.3); }
+            100% { box-shadow: 0 0 20px rgba(0, 242, 254, 0.95), inset 0 0 12px rgba(0, 242, 254, 0.5); }
+        }
+
+        .ai-gesture-badge.badge-swipe-left,
+        .ai-gesture-badge.badge-swipe-right {
+            border-color: #00f2fe;
+            box-shadow: 0 0 16px rgba(0, 242, 254, 0.8), inset 0 0 8px rgba(0, 242, 254, 0.4);
+            text-shadow: 0 0 8px #00f2fe;
+        }
+
+        .ai-gesture-badge.badge-open-palm {
+            border-color: #00ff66;
+            box-shadow: 0 0 16px rgba(0, 255, 102, 0.8), inset 0 0 8px rgba(0, 255, 102, 0.4);
+            text-shadow: 0 0 8px #00ff66;
+        }
+
+        .ai-gesture-badge.badge-fist {
+            border-color: #ff3366;
+            box-shadow: 0 0 16px rgba(255, 51, 102, 0.8), inset 0 0 8px rgba(255, 51, 102, 0.4);
+            text-shadow: 0 0 8px #ff3366;
+        }
+
+        .ai-gesture-badge.badge-pinch {
+            border-color: #ffcc00;
+            box-shadow: 0 0 16px rgba(255, 204, 0, 0.8), inset 0 0 8px rgba(255, 204, 0, 0.4);
+            text-shadow: 0 0 8px #ffcc00;
+        }
+
         .ai-status-pill {
             font-size: 9px;
             letter-spacing: 1px;
@@ -156,6 +218,14 @@
             text-align: center;
             border: 1px solid rgba(0, 255, 102, 0.3);
             white-space: nowrap;
+            transition: all 0.25s ease;
+        }
+
+        .ai-status-pill.neon-glow-active {
+            border-color: #00f2fe;
+            box-shadow: 0 0 14px rgba(0, 242, 254, 0.8);
+            color: #ffffff;
+            background: rgba(0, 242, 254, 0.22);
         }
 
         .ai-btn {
@@ -1229,6 +1299,7 @@
         <div id="cam-wrapper">
             <video id="webcam" playsinline autoplay muted style="display:none;"></video>
             <canvas id="hand-canvas"></canvas>
+            <div id="ai-gesture-badge" class="ai-gesture-badge"></div>
         </div>
         <div class="ai-status-pill" id="ai-status">CHỜ CAMERA...</div>
         <button class="ai-btn" id="toggle-cam-btn">BẬT CAMERA AI</button>
@@ -1238,7 +1309,7 @@
 
     
 
-    <div id="gesture-hint">Chúm ngón (Pinch): Bắt ảnh | Giơ 1-2 ngón: Đổi ảnh | Xòe tay: Bung tinh cầu | Nắm tay: Thu về sách | Nghiêng tay: Xoay mô hình</div>
+    <div id="gesture-hint">Chúm ngón: Bắt ảnh | Vuốt trái/phải: Đổi ảnh | Xòe tay: Bung / Thoát ngân hà | Nắm tay: Thu về sách | Nghiêng tay: Xoay mô hình</div>
 
     
     <!-- SCREEN FLASH OVERLAY -->
@@ -1385,7 +1456,7 @@
         const GALAXY_PARTICLES = 5400;
         const EXTRA_PAGE_PARTICLES = 36000;
         const TOTAL_BUFFER_PARTICLES = GALAXY_PARTICLES + EXTRA_PAGE_PARTICLES;
-        const FLARE_COUNT = 360;
+        const FLARE_COUNT = 180;
 
         const COVER_PHOTO_COUNT = 8;
         const EXTRA_GALAXY_PHOTO_COUNT = 247;
@@ -1398,7 +1469,7 @@
         let innerSparksLight;
 
         let masterParticleMesh, morphShaderMat;
-        let pBookPos, pOpenedPos, pBurstDir, pGalaxyPos, pColors, pSizesClosed, pSizesGalaxy, pPhases, pPageFlags, pArchParams, pIsExtra;
+        let pBookPos, pOpenedPos, pBurstDir, pGalaxyPos, pColors, pSizesClosed, pSizesGalaxy, pPhases, pPageFlags, pArchParams, pIsExtra, pAttenuate;
 
         let heroGiantHearts = [];
         let stars3Point = [], stars4Point = [], stars5Point = [];
@@ -1431,6 +1502,8 @@
         let webcamRunning = false;
         let lastVideoTime = -1;
         let isProcessingAI = false;
+        let aiVideoCallbackId = null;
+        let lastAiDetectionTimestamp = 0;
 
         const STATE = {
             hand: { detected: false, x: 0, y: 0 },
@@ -1445,6 +1518,38 @@
         let smoothedPalmSize = 0.22;
         let targetCameraDistance = 24.5; // Đẩy lùi mặc định 40% (17.0 * 1.44 = 24.5)
         let handRotationBias = 0.0;
+
+        // [TICKET 05]: Hysteretic Swipe Navigation, Release Lockout & HUD Feedback
+        let focusEntryTime = 0;
+        let pinchReleaseLockoutUntil = 0;
+        let swipeLockoutUntil = 0;
+        let lastSwipeX = null;
+        let lastSwipeTime = 0;
+        let lastSwipeDir = 0;
+        let openPalmStartTime = null;
+        let aiHudBadgeTimer = null;
+        let aiStatusTimer = null;
+
+        function showAiHudBadge(type, text) {
+            const badge = document.getElementById('ai-gesture-badge');
+            if (badge) {
+                badge.className = 'ai-gesture-badge active ' + (type || '');
+                badge.textContent = text;
+                clearTimeout(aiHudBadgeTimer);
+                aiHudBadgeTimer = setTimeout(() => {
+                    badge.classList.remove('active');
+                }, 1100);
+            }
+            if (aiStatus) {
+                aiStatus.textContent = text;
+                aiStatus.classList.add('neon-glow-active');
+                clearTimeout(aiStatusTimer);
+                aiStatusTimer = setTimeout(() => {
+                    aiStatus.classList.remove('neon-glow-active');
+                }, 1100);
+            }
+        }
+        window.showAiHudBadge = showAiHudBadge;
 
         const webcamElement = document.getElementById('webcam');
         const handCanvas = document.getElementById('hand-canvas');
@@ -1470,8 +1575,18 @@
             vibrateIntensity: 0.0,
 
             setTarget(newState, photoIdx = -1) {
+                const photoChanged = (photoIdx >= 0 && photoIdx !== selectedPhotoIndex);
                 if (photoIdx >= 0) selectedPhotoIndex = photoIdx;
-                if (this.targetState === newState) return;
+
+                if (this.targetState === newState) {
+                    if (newState === STATES.FOCUS_PHOTO && photoChanged) {
+                        this.stateProgress = 0.0;
+                        this.stateTime = 0.0;
+                        this.updateUI();
+                        updateHeroFocusedTexture();
+                    }
+                    return;
+                }
 
                 if (this.handlers[this.currentState]?.onExit) {
                     this.handlers[this.currentState].onExit();
@@ -1483,13 +1598,25 @@
 
                 if (newState === STATES.BOOK_AJAR) this.transitionDuration = 2.4;
                 else if (newState === STATES.GALAXY_BURST) this.transitionDuration = 3.2; // 3 trong 1 chậm rãi
-                else if (newState === STATES.FOCUS_PHOTO) this.transitionDuration = 1.2;
+                else if (newState === STATES.FOCUS_PHOTO) {
+                    this.transitionDuration = 1.2;
+                    const nowFocus = performance.now();
+                    focusEntryTime = nowFocus;
+                    pinchReleaseLockoutUntil = nowFocus + 800; // 800ms Pinch Release Lockout
+                    swipeLockoutUntil = nowFocus + 800;
+                    openPalmStartTime = null;
+                    lastSwipeTime = 0;
+                    lastSwipeX = null;
+                }
 
                 if (this.handlers[this.targetState]?.onEnter) {
                     this.handlers[this.targetState].onEnter();
                 }
 
                 this.updateUI();
+                if (newState === STATES.FOCUS_PHOTO) {
+                    updateHeroFocusedTexture();
+                }
             },
 
             updateUI() {
@@ -1499,10 +1626,15 @@
                     else btn.classList.remove('active');
                 });
 
+                const curCard = (allPhotoCards && allPhotoCards[selectedPhotoIndex]) ? allPhotoCards[selectedPhotoIndex] : null;
+                const pItem = (curCard && curCard.userData && curCard.userData.photoItem) ? curCard.userData.photoItem : null;
+                const totalCount = (allPhotos && allPhotos.length > 0) ? allPhotos.length : (allPhotoCards ? allPhotoCards.length : TOTAL_PHOTO_COUNT);
+                const displayTitle = (pItem && pItem.title) ? pItem.title : `ẢNH #${(selectedPhotoIndex % totalCount) + 1}`;
+
                 const messages = {
                     [STATES.BOOK_AJAR]: "TRẠNG THÁI 1: SÁCH MỞ HỜ 30° · XÒE TAY ĐỂ BUNG TINH CẦU",
                     [STATES.GALAXY_BURST]: "TRẠNG THÁI 2: TINH CẦU 360° ĐẶC · CHỤM NGÓN (PINCH) BẮT ẢNH · NẮM TAY THU HỒI",
-                    [STATES.FOCUS_PHOTO]: `TRẠNG THÁI 3: XEM ẢNH #${selectedPhotoIndex + 1} · GIƠ 1-2 NGÓN ĐỔI ẢNH · XÒE TAY THOÁT`
+                    [STATES.FOCUS_PHOTO]: `TRẠNG THÁI 3: XEM ${displayTitle.toUpperCase()} · VUỐT HOẶC 1-2 NGÓN ĐỔI ẢNH · XÒE TAY THOÁT`
                 };
                 if (choreoPill) {
                     choreoPill.textContent = messages[this.targetState] || "";
@@ -1533,6 +1665,7 @@
             const total = (allPhotoCards && allPhotoCards.length > 0) ? allPhotoCards.length : ((allPhotos && allPhotos.length > 0) ? allPhotos.length : TOTAL_PHOTO_COUNT);
             if (total === 0) return;
             selectedPhotoIndex = (selectedPhotoIndex + 1) % total;
+            updateHeroFocusedTexture();
             FSM.updateUI();
         }
 
@@ -1540,6 +1673,7 @@
             const total = (allPhotoCards && allPhotoCards.length > 0) ? allPhotoCards.length : ((allPhotos && allPhotos.length > 0) ? allPhotos.length : TOTAL_PHOTO_COUNT);
             if (total === 0) return;
             selectedPhotoIndex = (selectedPhotoIndex - 1 + total) % total;
+            updateHeroFocusedTexture();
             FSM.updateUI();
         }
 
@@ -1961,52 +2095,52 @@
             renderPolarVortex(true);  // North Polar Vortex (0% - 27%)
             renderPolarVortex(false); // South Polar Vortex (73% - 100%)
 
-            // 3. Layered Central Celestial Ribbon in Rich Jewel Tones (32% - 68%)
+            // 3. Layered Central Celestial Ribbon in Rich Jewel Tones (32% - 68%) - Ticket 02: Scaled to 60% opacity
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
 
-            // Layer A: Broad Outer Nebula Bloom
+            // Layer A: Broad Outer Nebula Bloom (Scaled to 0.60x)
             for (let x = 0; x <= W; x += 28 * scaleX) {
                 const u = x / W;
                 const cy = getRibbonCenterY(x);
                 const rx = (210 + Math.sin(u * Math.PI * 6) * 45) * scaleX;
                 const ry = (140 + Math.cos(u * Math.PI * 4) * 30) * scaleY;
-                const colInner = getPaletteColor(u, 0.208);
-                const colMid = getPaletteColor(u, 0.072);
+                const colInner = getPaletteColor(u, 0.1248);
+                const colMid = getPaletteColor(u, 0.0432);
                 drawNebulaPuff(x, cy, rx, ry, colInner, colMid, 'rgba(0, 0, 0, 0)');
             }
 
-            // Layer B: Harmonic Intersecting Strand (counter-rhythm)
+            // Layer B: Harmonic Intersecting Strand (counter-rhythm) (Scaled to 0.60x)
             for (let x = 0; x <= W; x += 32 * scaleX) {
                 const u = x / W;
                 const theta2 = u * Math.PI * 2 - 1.4;
                 const cy2 = H * 0.5 + (Math.sin(theta2) * 110 + Math.cos(theta2 * 2 + 0.8) * 45) * scaleY;
                 const rx2 = (150 + Math.cos(u * Math.PI * 8) * 30) * scaleX;
                 const ry2 = (90 + Math.sin(u * Math.PI * 6) * 18) * scaleY;
-                const colInner = getPaletteColor((u + 0.35) % 1.0, 0.176);
-                const colMid = getPaletteColor((u + 0.35) % 1.0, 0.056);
+                const colInner = getPaletteColor((u + 0.35) % 1.0, 0.1056);
+                const colMid = getPaletteColor((u + 0.35) % 1.0, 0.0336);
                 drawNebulaPuff(x, cy2, rx2, ry2, colInner, colMid, 'rgba(0, 0, 0, 0)');
             }
 
-            // Layer C: Dense Luminous Core Stream & Filaments
+            // Layer C: Dense Luminous Core Stream & Filaments (Scaled to 0.60x)
             ctx.globalCompositeOperation = 'lighter';
             for (let x = 0; x <= W; x += 20 * scaleX) {
                 const u = x / W;
                 const cy = getRibbonCenterY(x);
                 const rxCore = (70 + Math.sin(u * Math.PI * 10) * 18) * scaleX;
                 const ryCore = (40 + Math.cos(u * Math.PI * 8) * 12) * scaleY;
-                const colInner = 'rgba(255, 255, 255, 0.28)';
-                const colMid = getPaletteColor(u, 0.24);
+                const colInner = 'rgba(255, 255, 255, 0.168)';
+                const colMid = getPaletteColor(u, 0.144);
                 drawNebulaPuff(x, cy, rxCore, ryCore, colInner, colMid, 'rgba(0, 0, 0, 0)');
             }
 
-            // Layer D: Accented Cosmic Dust Billows along major crests
+            // Layer D: Accented Cosmic Dust Billows along major crests (Scaled to 0.60x)
             const billows = [
-                { u: 0.12, col1: 'rgba(0, 242, 254, 0.28)', col2: 'rgba(0, 255, 136, 0.16)', rx: 260 * scaleX, ry: 170 * scaleY },
-                { u: 0.32, col1: 'rgba(0, 255, 136, 0.24)', col2: 'rgba(255, 184, 0, 0.176)', rx: 240 * scaleX, ry: 160 * scaleY },
-                { u: 0.52, col1: 'rgba(255, 184, 0, 0.28)', col2: 'rgba(255, 45, 141, 0.192)', rx: 270 * scaleX, ry: 180 * scaleY },
-                { u: 0.72, col1: 'rgba(255, 45, 141, 0.304)', col2: 'rgba(168, 85, 247, 0.192)', rx: 280 * scaleX, ry: 190 * scaleY },
-                { u: 0.90, col1: 'rgba(168, 85, 247, 0.256)', col2: 'rgba(0, 242, 254, 0.176)', rx: 250 * scaleX, ry: 165 * scaleY }
+                { u: 0.12, col1: 'rgba(0, 242, 254, 0.168)', col2: 'rgba(0, 255, 136, 0.096)', rx: 260 * scaleX, ry: 170 * scaleY },
+                { u: 0.32, col1: 'rgba(0, 255, 136, 0.144)', col2: 'rgba(255, 184, 0, 0.1056)', rx: 240 * scaleX, ry: 160 * scaleY },
+                { u: 0.52, col1: 'rgba(255, 184, 0, 0.168)', col2: 'rgba(255, 45, 141, 0.1152)', rx: 270 * scaleX, ry: 180 * scaleY },
+                { u: 0.72, col1: 'rgba(255, 45, 141, 0.1824)', col2: 'rgba(168, 85, 247, 0.1152)', rx: 280 * scaleX, ry: 190 * scaleY },
+                { u: 0.90, col1: 'rgba(168, 85, 247, 0.1536)', col2: 'rgba(0, 242, 254, 0.1056)', rx: 250 * scaleX, ry: 165 * scaleY }
             ];
             for (const b of billows) {
                 const bx = b.u * W;
@@ -2206,18 +2340,25 @@
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
 
-            // VIỀN TRẮNG ĐẬM
-            ctx.shadowColor = 'rgba(0, 242, 254, 0.8)';
-            ctx.shadowBlur = 18;
+            // VIỀN TRẮNG ĐẬM DẬP NỔI (EMBOSSED WHITE OUTLINE)
+            ctx.shadowColor = 'rgba(0, 242, 254, 0.85)';
+            ctx.shadowBlur = 20;
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 22;
+            ctx.lineWidth = 26;
             ctx.strokeText('MEMORYZONE', 0, -38);
             ctx.font = '700 100px "Fredoka", sans-serif';
             ctx.strokeText('2 1 8', 0, 56);
 
+            // Viền nổi sắc nét thứ hai để tăng độ tương phản dập nổi
             ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 18;
+            ctx.strokeText('2 1 8', 0, 56);
+            ctx.font = '700 84px "Fredoka", sans-serif';
+            ctx.strokeText('MEMORYZONE', 0, -38);
+
             ctx.strokeStyle = '#00f2fe';
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 5;
             ctx.strokeText('2 1 8', 0, 56);
             ctx.font = '700 84px "Fredoka", sans-serif';
             ctx.strokeText('MEMORYZONE', 0, -38);
@@ -2249,14 +2390,14 @@
             tex.colorSpace = THREE.SRGBColorSpace;
             tex.needsUpdate = true;
 
-            const geo = new THREE.PlaneGeometry(3.40, 1.20);
+            const geo = new THREE.PlaneGeometry(4.10, 1.45);
             const mat = new THREE.MeshStandardMaterial({
                 map: tex,
                 transparent: true,
                 metalness: 0.9,
                 roughness: 0.15,
                 emissive: 0x00f2fe,
-                emissiveIntensity: 0.42,
+                emissiveIntensity: 0.75,
                 depthWrite: false
             });
 
@@ -2401,7 +2542,7 @@
             rightCoverHinge.add(contourLineMesh);
 
             titleMesh = createBlackGalaxyAnimeMasterTitle();
-            titleMesh.position.set(2.30, 2.25, T + BOOK.bevel + 0.005);
+            titleMesh.position.set(2.30, 2.35, T + BOOK.bevel + 0.005);
             rightCoverHinge.add(titleMesh);
         }
 
@@ -2418,6 +2559,7 @@
             pPageFlags = new Float32Array(count);
             pArchParams = new Float32Array(count);
             pIsExtra = new Float32Array(count);
+            pAttenuate = new Float32Array(count);
 
             const W = BOOK.width;
             const H = BOOK.height;
@@ -2454,6 +2596,8 @@
                 pPhases[i] = Math.random() * Math.PI * 2;
                 const isExtra = (i >= GALAXY_PARTICLES) ? 1.0 : 0.0;
                 pIsExtra[i] = isExtra;
+                // Ticket 02: Dual-Phase Stardust Attenuation - exactly 30% of particles (12,420 out of 41,400)
+                pAttenuate[i] = (i % 10 < 3) ? 1.0 : 0.0;
 
                 let bx = 0, by = 0, bz = 0;
                 let ox = 0, oy = 0, oz = 0;
@@ -2601,6 +2745,7 @@
             geo.setAttribute('pageFlag', new THREE.BufferAttribute(pPageFlags, 1));
             geo.setAttribute('archParam', new THREE.BufferAttribute(pArchParams, 1));
             geo.setAttribute('isExtra', new THREE.BufferAttribute(pIsExtra, 1));
+            geo.setAttribute('attenuate', new THREE.BufferAttribute(pAttenuate, 1));
 
             morphShaderMat = new THREE.ShaderMaterial({
                 vertexShader: `
@@ -2614,6 +2759,7 @@
                     attribute float pageFlag;
                     attribute float archParam;
                     attribute float isExtra;
+                    attribute float attenuate;
 
                     uniform float uOpenRatio;
                     uniform float uBurstRatio;
@@ -2654,11 +2800,18 @@
                         vec4 mvPos = modelViewMatrix * vec4(finalP, 1.0);
                         gl_Position = projectionMatrix * mvPos;
 
-                        float curSize = mix(sizeClosed, sizeGalaxy, uGalaxyRatio);
+                        // Ticket 02: GPU Dual-Phase Stardust Attenuation
+                        // 100% density (41,400 particles) in BOOK_AJAR (uGalaxyRatio = 0.0).
+                        // Smoothly attenuate 30% of particles (12,420 particles) to size 0 & alpha 0 as uGalaxyRatio -> 1.0,
+                        // leaving exactly 70% density (28,980 particles) active in GALAXY_BURST.
+                        float targetGalaxySize = sizeGalaxy * (1.0 - attenuate);
+                        float curSize = mix(sizeClosed, targetGalaxySize, uGalaxyRatio);
                         float pulse = 1.0 + 0.32 * sin(uTime * 3.5 + phase * 6.28);
                         gl_PointSize = curSize * pulse * (300.0 / -mvPos.z);
 
-                        vAlpha = (0.82 + 0.18 * uGalaxyRatio) * uFocusDim;
+                        float baseAlpha = (0.82 + 0.18 * uGalaxyRatio);
+                        float targetAlpha = baseAlpha * (1.0 - attenuate * uGalaxyRatio);
+                        vAlpha = targetAlpha * uFocusDim;
                     }
                 `,
                 fragmentShader: `
@@ -2667,7 +2820,7 @@
 
                     void main() {
                         float dist = length(gl_PointCoord - vec2(0.5));
-                        if (dist > 0.5) discard;
+                        if (dist > 0.5 || vAlpha <= 0.001) discard;
                         float glow = 1.0 - smoothstep(0.18, 0.5, dist);
                         gl_FragColor = vec4(vColor, glow * vAlpha);
                     }
@@ -3801,17 +3954,13 @@
         function createCoverStickerCardMesh(tex, width, height, dominantCol = '#00f2fe') {
             const group = new THREE.Group();
 
-            // 1. Mặt ảnh phẳng sticker dính sát bìa với viền pha lê trong suốt, DoubleSide 2 mặt
+            // 1. Mặt ảnh phẳng sticker dính sát bìa với viền pha lê trong suốt, DoubleSide 2 mặt, MeshBasicMaterial giữ 100% màu tự nhiên
             const photoGeo = new THREE.PlaneGeometry(width, height);
-            const photoMat = new THREE.MeshStandardMaterial({
+            const photoMat = new THREE.MeshBasicMaterial({
                 map: tex,
                 transparent: true,
-                alphaTest: 0.01,
+                alphaTest: 0.02,
                 side: THREE.DoubleSide,
-                roughness: 0.15,
-                metalness: 0.08,
-                emissive: new THREE.Color(0x00f2fe),
-                emissiveIntensity: 0.18,
                 depthWrite: true
             });
             const photoPlane = new THREE.Mesh(photoGeo, photoMat);
@@ -3819,25 +3968,7 @@
             group.add(photoPlane);
             group.userData.photoPlane = photoPlane;
 
-            // 2. Viền neon phát quang tinh tế bao quanh 2 mặt trước & sau của thẻ ảnh
-            const frameLineMat = new THREE.LineBasicMaterial({ color: new THREE.Color(dominantCol), transparent: true, opacity: 0.25 });
-            const frameLine = new THREE.LineSegments(
-                new THREE.EdgesGeometry(photoGeo),
-                frameLineMat
-            );
-            frameLine.position.z = 0.001;
-            group.add(frameLine);
-            group.userData.frameLine = frameLine;
-
-            const frameLineBack = new THREE.LineSegments(
-                new THREE.EdgesGeometry(photoGeo),
-                frameLineMat
-            );
-            frameLineBack.position.z = -0.001;
-            group.add(frameLineBack);
-            group.userData.frameLineBack = frameLineBack;
-
-            // 3. Đốm sáng lung linh (ẩn khi ở trạng thái sách mở hờ)
+            // 2. Đốm sáng lung linh (ẩn khi ở trạng thái sách mở hờ)
             const orbGeo = new THREE.SphereGeometry(0.30, 14, 14);
             const orbMat = new THREE.MeshBasicMaterial({
                 color: new THREE.Color(dominantCol).multiplyScalar(1.5),
@@ -4793,7 +4924,8 @@
                         if (renderer?.domElement) renderer.domElement.style.cursor = 'default';
                         return;
                     }
-                    if (FSM.currentState === STATES.GALAXY_BURST || FSM.currentState === STATES.FOCUS_PHOTO || FSM.currentState === STATES.BOOK_AJAR) {
+                    const isBookAjar = (FSM.targetState === STATES.BOOK_AJAR || FSM.currentState === STATES.BOOK_AJAR);
+                    if (FSM.currentState === STATES.GALAXY_BURST || FSM.currentState === STATES.FOCUS_PHOTO || isBookAjar) {
                         mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                         raycaster.setFromCamera(mouse, camera);
@@ -4802,7 +4934,7 @@
                             let top = intersects[0].object;
                             while (top.parent && !top.userData.isPhoto) top = top.parent;
                             if (top.userData.isPhoto) {
-                                if (FSM.currentState === STATES.BOOK_AJAR && !top.userData.isCoverPhoto) {
+                                if (isBookAjar && !top.userData.isCoverPhoto) {
                                     // Bỏ qua các ảnh galaxy đang ở dạng hạt đốm sáng
                                 } else {
                                     hoveredCardIndex = top.userData.index;
@@ -4866,7 +4998,7 @@
                     // Tap chạm chọn ảnh / Double tap thu hồi
                     if (!isTouchDragging && dt < 350) {
                         const now = performance.now();
-                        if (now - lastTapTime < 350 && FSM.currentState === STATES.FOCUS_PHOTO) {
+                        if (now - lastTapTime < 350 && (FSM.currentState === STATES.FOCUS_PHOTO || FSM.targetState === STATES.FOCUS_PHOTO)) {
                             FSM.setTarget(STATES.GALAXY_BURST);
                             lastTapTime = 0;
                             return;
@@ -4889,7 +5021,7 @@
                 } else if (e.key === 'ArrowLeft') {
                     prevPhoto();
                 } else if (e.key === 'Escape') {
-                    if (FSM.currentState === STATES.FOCUS_PHOTO) {
+                    if (FSM.currentState === STATES.FOCUS_PHOTO || FSM.targetState === STATES.FOCUS_PHOTO) {
                         FSM.setTarget(STATES.GALAXY_BURST);
                     }
                 }
@@ -4898,6 +5030,14 @@
 
         function onPointerDown(e) {
             if (e.target?.closest?.('#fsm-ui') || e.target?.closest?.('#ai-hud') || e.target?.closest?.('#bgm-ui') || e.target?.closest?.('#photo-modal') || e.target?.closest?.('#gateway-overlay')) return;
+
+            // 1. Phân cấp tương tác trạng thái Sách mở hờ (BOOK_AJAR):
+            // Bấm vào bất kỳ ảnh bìa nào, thân sách hoặc nền đều kích hoạt bung ngân hà (GALAXY_BURST),
+            // tuyệt đối không phóng thẳng vào Hero Focus.
+            if (FSM.targetState === STATES.BOOK_AJAR || FSM.currentState === STATES.BOOK_AJAR) {
+                FSM.setTarget(STATES.GALAXY_BURST);
+                return;
+            }
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -4910,18 +5050,14 @@
                 let top = intersects[0].object;
                 while (top.parent && !top.userData.isPhoto) top = top.parent;
                 if (top.userData.isPhoto) {
-                    if (FSM.currentState === STATES.BOOK_AJAR && !top.userData.isCoverPhoto) {
-                        FSM.setTarget(STATES.GALAXY_BURST);
-                        return;
-                    }
+                    // Trong GALAXY_BURST: Bấm vào ảnh bìa (0-7) hoặc ảnh kỷ niệm (8+) đều chuyển mượt mà vào FOCUS_PHOTO
                     FSM.setTarget(STATES.FOCUS_PHOTO, top.userData.index);
                     return;
                 }
             }
 
-            if (FSM.currentState === STATES.FOCUS_PHOTO) {
-                FSM.setTarget(STATES.GALAXY_BURST);
-            } else if (FSM.currentState === STATES.BOOK_AJAR) {
+            // Click ra khoảng trống ngoài nền khi đang xem chi tiết -> quay lại Tinh cầu ngân hà
+            if (FSM.targetState === STATES.FOCUS_PHOTO || FSM.currentState === STATES.FOCUS_PHOTO) {
                 FSM.setTarget(STATES.GALAXY_BURST);
             }
         }
@@ -4962,6 +5098,7 @@
                         toggleCamBtn.textContent = "TẮT CAMERA AI";
                         aiStatus.textContent = "AI ĐANG QUAN SÁT";
                         aiDot.style.background = "#00ff66";
+                        scheduleNextAiFrame();
                     }, { once: true });
                 } catch (e) {
                     aiStatus.textContent = "TỪ CHỐI CAMERA";
@@ -4979,6 +5116,14 @@
                     stream.getTracks().forEach(t => t.stop());
                 }
                 webcamRunning = false;
+                if (aiVideoCallbackId !== null) {
+                    if ('cancelVideoFrameCallback' in webcamElement) {
+                        webcamElement.cancelVideoFrameCallback(aiVideoCallbackId);
+                    } else {
+                        cancelAnimationFrame(aiVideoCallbackId);
+                    }
+                    aiVideoCallbackId = null;
+                }
                 toggleCamBtn.textContent = "BẬT CAMERA AI";
                 aiStatus.textContent = "CAMERA ĐÃ TẮT";
                 aiDot.style.background = "#555";
@@ -4988,39 +5133,58 @@
 
         toggleCamBtn.addEventListener('click', toggleWebcamState);
 
-        function processHandGesturesAsync() {
-            if (!webcamRunning || !handLandmarker || isProcessingAI) return;
-            if (webcamElement.readyState < 2) return;
+        // [TICKET 04]: Decoupled AI Pipeline - Độc lập hoàn toàn khỏi WebGL render loop
+        function scheduleNextAiFrame() {
+            if (!webcamRunning) return;
+            if ('requestVideoFrameCallback' in webcamElement) {
+                aiVideoCallbackId = webcamElement.requestVideoFrameCallback(runAiDetectionLoop);
+            } else {
+                aiVideoCallbackId = requestAnimationFrame(runAiDetectionLoop);
+            }
+        }
 
-            if (webcamElement.currentTime !== lastVideoTime) {
-                lastVideoTime = webcamElement.currentTime;
-                isProcessingAI = true;
+        function runAiDetectionLoop(now, metadata) {
+            if (!webcamRunning) return;
 
-                try {
-                    const results = handLandmarker.detectForVideo(webcamElement, performance.now());
-                    
-                    if (handCanvas.width !== 320 || handCanvas.height !== 240) {
-                        handCanvas.width = 320;
-                        handCanvas.height = 240;
+            const currentTime = (typeof now === 'number' && now > 0) ? now : performance.now();
+            // Điều tiết nhịp độ (cadence throttling) ở mức 25-30 FPS (~33ms), giải phóng 100% tài nguyên cho Three.js 60 FPS
+            if (currentTime - lastAiDetectionTimestamp >= 33 && !isProcessingAI && handLandmarker) {
+                if (webcamElement.readyState >= 2 && webcamElement.currentTime !== lastVideoTime) {
+                    lastVideoTime = webcamElement.currentTime;
+                    lastAiDetectionTimestamp = currentTime;
+                    isProcessingAI = true;
+
+                    try {
+                        const results = handLandmarker.detectForVideo(webcamElement, currentTime);
+
+                        if (handCanvas.width !== 320 || handCanvas.height !== 240) {
+                            handCanvas.width = 320;
+                            handCanvas.height = 240;
+                        }
+                        handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+                        if (results.landmarks && results.landmarks.length > 0) {
+                            const lm = results.landmarks[0];
+                            drawNeonHandPiP(lm);
+                            interpretGestureMapping(lm);
+                        } else {
+                            STATE.hand.detected = false;
+                            fingerGestureActive = false;
+                            prevIndexTipY = null;
+                            openPalmStartTime = null;
+                            lastSwipeTime = 0;
+                            lastSwipeX = null;
+                            aiStatus.textContent = "TÌM BÀN TAY...";
+                        }
+                    } catch(err) {
+                        console.warn("AI Frame Skip:", err);
+                    } finally {
+                        isProcessingAI = false;
                     }
-                    handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
-
-                    if (results.landmarks && results.landmarks.length > 0) {
-                        const lm = results.landmarks[0];
-                        drawNeonHandPiP(lm);
-                        interpretGestureMapping(lm);
-                    } else {
-                        STATE.hand.detected = false;
-                        fingerGestureActive = false;
-                        prevIndexTipY = null;
-                        aiStatus.textContent = "TÌM BÀN TAY...";
-                    }
-                } catch(err) {
-                    console.warn("AI Frame Skip:", err);
-                } finally {
-                    isProcessingAI = false;
                 }
             }
+
+            scheduleNextAiFrame();
         }
 
         const HAND_CONNECTIONS = [
@@ -5078,14 +5242,47 @@
                 }
             }
 
+            // [TICKET 05]: 800ms Pinch Release Lockout on entering Hero Focus
+            const now = performance.now();
+            focusEntryTime = now;
+            pinchReleaseLockoutUntil = now + 800;
+            swipeLockoutUntil = now + 800;
+            openPalmStartTime = null;
+            lastSwipeTime = 0;
+            lastSwipeX = null;
+
             if (closestIdx >= 0) {
                 triggerScreenFlash();
-                    FSM.setTarget(STATES.FOCUS_PHOTO, closestIdx);
+                FSM.setTarget(STATES.FOCUS_PHOTO, closestIdx);
             } else {
                 FSM.setTarget(STATES.FOCUS_PHOTO, selectedPhotoIndex);
             }
         }
         window.triggerPhotoGrab = triggerPhotoGrab;
+
+        // [TICKET 04]: Helper đánh giá góc gập khớp ngón tay và độ vươn chuẩn hóa theo chiều dài bàn tay
+        function checkFingerState(tipIdx, pipIdx, mcpIdx, lm, wrist, palmLen) {
+            const tip = lm[tipIdx];
+            const pip = lm[pipIdx];
+            const mcp = lm[mcpIdx];
+
+            const tipToWrist = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+            const pipToWrist = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+            const tipToMCP = Math.hypot(tip.x - mcp.x, tip.y - mcp.y);
+
+            const v1x = pip.x - mcp.x;
+            const v1y = pip.y - mcp.y;
+            const v2x = tip.x - pip.x;
+            const v2y = tip.y - pip.y;
+            const mag1 = Math.hypot(v1x, v1y);
+            const mag2 = Math.hypot(v2x, v2y);
+            const cosAngle = (mag1 > 0.001 && mag2 > 0.001) ? (v1x * v2x + v1y * v2y) / (mag1 * mag2) : 0;
+
+            const isExtended = (tipToWrist > pipToWrist) && (cosAngle > 0.35) && (tipToMCP > 0.55 * palmLen);
+            const isFlexed = (tipToWrist < pipToWrist * 1.05) || (tipToMCP < 0.45 * palmLen);
+
+            return { isExtended, isFlexed, tipToMCPRatio: tipToMCP / palmLen, cosAngle };
+        }
 
         function interpretGestureMapping(lm) {
             STATE.hand.detected = true;
@@ -5101,79 +5298,132 @@
             STATE.hand.x = (middleMCP.x - 0.5) * 2.0;
             STATE.hand.y = (middleMCP.y - 0.5) * 2.0;
 
-            const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+            // [TICKET 04]: Scale-Invariant Palm Metric Normalization
+            const palmLen = Math.hypot(wrist.x - middleMCP.x, wrist.y - middleMCP.y);
+            if (palmLen < 0.005) return;
+
+            const indexState = checkFingerState(8, 6, 5, lm, wrist, palmLen);
+            const middleState = checkFingerState(12, 10, 9, lm, wrist, palmLen);
+            const ringState = checkFingerState(16, 14, 13, lm, wrist, palmLen);
+            const pinkyState = checkFingerState(20, 18, 17, lm, wrist, palmLen);
+
             const openDist = Math.hypot(middleTip.x - wrist.x, middleTip.y - wrist.y);
+            const openRatio = openDist / palmLen;
 
-            const isPinch = pinchDist < 0.055;
-            const isOpen = openDist > 0.38;
-            const isFist = openDist < 0.18 && !isPinch;
+            const allExtended = indexState.isExtended && middleState.isExtended && ringState.isExtended && pinkyState.isExtended;
+            const allFlexed = indexState.isFlexed && middleState.isFlexed && ringState.isFlexed && pinkyState.isFlexed;
 
-            const indexUp = indexTip.y < lm[6].y - 0.03;
-            const middleUp = middleTip.y < lm[10].y - 0.03;
-            const ringUp = ringTip.y < lm[14].y - 0.02;
-            const pinkyUp = pinkyTip.y < lm[18].y - 0.02;
+            const isFist = allFlexed && (openRatio < 1.25);
+            const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+            const pinchRatio = pinchDist / palmLen;
+            const isPinch = (pinchRatio < 0.32) && !isFist && (indexState.tipToMCPRatio > 0.50);
 
-            const isOneFinger = indexUp && !middleUp && !ringUp && !pinkyUp;
-            const isTwoFingers = indexUp && middleUp && !ringUp && !pinkyUp;
+            const isOpen = (openRatio > 1.35) && allExtended && !isPinch && !isFist;
+
+            const isOneFinger = indexState.isExtended && !middleState.isExtended && !ringState.isExtended && !pinkyState.isExtended;
+            const isTwoFingers = indexState.isExtended && middleState.isExtended && !ringState.isExtended && !pinkyState.isExtended;
 
             const now = performance.now();
 
-            if (FSM.currentState === STATES.FOCUS_PHOTO) {
-                if (isOpen) {
-                    aiStatus.textContent = "XÒE TAY: QUAY LẠI GALAXY";
-                    FSM.setTarget(STATES.GALAXY_BURST);
-                    fingerGestureActive = false;
-                    prevIndexTipY = null;
-                    gestureDebounceTimer = now;
-                    return;
-                } else if (isFist) {
-                    aiStatus.textContent = "NẮM TAY: THU VỀ SÁCH";
-                    FSM.setTarget(STATES.BOOK_AJAR);
-                    fingerGestureActive = false;
-                    prevIndexTipY = null;
-                    gestureDebounceTimer = now;
-                    return;
-                } else if (isOneFinger || isTwoFingers) {
-                    const currentY = indexTip.y;
-                    let moved = prevIndexTipY !== null && Math.abs(currentY - prevIndexTipY) > 0.035;
-                    if ((!fingerGestureActive || moved) && (now - swipeDebounceTimer > 450)) {
-                        if (prevIndexTipY !== null && currentY < prevIndexTipY - 0.035) {
-                            nextPhoto();
-                            aiStatus.textContent = "VUỐT LÊN: ẢNH TIẾP";
-                        } else if (prevIndexTipY !== null && currentY > prevIndexTipY + 0.035) {
-                            prevPhoto();
-                            aiStatus.textContent = "VUỐT XUỐNG: ẢNH TRƯỚC";
-                        } else {
-                            nextPhoto();
-                            aiStatus.textContent = "CHỈ TAY: ĐỔI ẢNH";
-                        }
-                        swipeDebounceTimer = now;
+            const isFocusState = (FSM.currentState === STATES.FOCUS_PHOTO || FSM.targetState === STATES.FOCUS_PHOTO);
+
+            if (isFocusState) {
+                // Exit Gesture 1: FIST immediately collapses entire album to BOOK_AJAR
+                if (isFist) {
+                    if (now - gestureDebounceTimer > 600) {
+                        showAiHudBadge('badge-fist', '✊ NẮM TAY: THU VỀ SÁCH');
+                        FSM.setTarget(STATES.BOOK_AJAR);
+                        fingerGestureActive = false;
+                        prevIndexTipY = null;
+                        gestureDebounceTimer = now;
+                        openPalmStartTime = null;
+                        lastSwipeTime = 0;
+                        lastSwipeX = null;
+                        return;
                     }
-                    fingerGestureActive = true;
-                    prevIndexTipY = currentY;
-                } else {
-                    fingerGestureActive = false;
-                    prevIndexTipY = null;
                 }
+
+                // Exit Gesture 2: Sustained Open Palm (held > 0.3s after 800ms release lockout) returns to GALAXY_BURST
+                if (isOpen) {
+                    if (now < pinchReleaseLockoutUntil) {
+                        // Pinch Release Lockout: suppress open palm triggers
+                        openPalmStartTime = null;
+                    } else {
+                        if (openPalmStartTime === null) {
+                            openPalmStartTime = now;
+                        } else if (now - openPalmStartTime >= 300) { // held > 0.3s (300ms)
+                            if (now - gestureDebounceTimer > 600) {
+                                showAiHudBadge('badge-open-palm', '🖐️ XÒE TAY: BUNG / THOÁT NGÂN HÀ');
+                                FSM.setTarget(STATES.GALAXY_BURST);
+                                fingerGestureActive = false;
+                                prevIndexTipY = null;
+                                gestureDebounceTimer = now;
+                                openPalmStartTime = null;
+                                lastSwipeTime = 0;
+                                lastSwipeX = null;
+                                return;
+                            }
+                        }
+                    }
+                } else {
+                    openPalmStartTime = null;
+                }
+
+                // [TICKET 05]: Hysteretic Horizontal Swipe Navigation
+                // Mirrored screen coordinate [0, 1] (left to right)
+                const currentScreenX = 1.0 - ((middleMCP.x + indexTip.x) * 0.5);
+                const V_THRESH = 0.70; // Ngưỡng vận tốc lướt nhanh
+                const V_RETURN = 0.40; // Ngưỡng chuyển động thu tay về chậm
+
+                if (lastSwipeX !== null && lastSwipeTime > 0) {
+                    const dtSec = (now - lastSwipeTime) / 1000.0;
+                    if (dtSec >= 0.02 && dtSec <= 0.22) {
+                        const vx = (currentScreenX - lastSwipeX) / dtSec;
+
+                        // Chỉ nhận diện vuốt khi hết 800ms post-swipe lockout và không trong pinch release lockout
+                        if (now >= swipeLockoutUntil && now >= pinchReleaseLockoutUntil && !isFist) {
+                            if (vx < -V_THRESH) {
+                                // Fast swipe left -> Next photo
+                                nextPhoto();
+                                showAiHudBadge('badge-swipe-left', '👉 VUỐT TRÁI: ẢNH TIẾP');
+                                swipeLockoutUntil = now + 800; // 800ms post-swipe lockout
+                                lastSwipeDir = -1;
+                                openPalmStartTime = null;
+                            } else if (vx > V_THRESH) {
+                                // Fast swipe right -> Previous photo
+                                prevPhoto();
+                                showAiHudBadge('badge-swipe-right', '👈 VUỐT PHẢI: ẢNH TRƯỚC');
+                                swipeLockoutUntil = now + 800; // 800ms post-swipe lockout
+                                lastSwipeDir = 1;
+                                openPalmStartTime = null;
+                            }
+                        }
+                    }
+                }
+                lastSwipeX = currentScreenX;
+                lastSwipeTime = now;
             } else {
                 fingerGestureActive = false;
                 prevIndexTipY = null;
+                openPalmStartTime = null;
+                lastSwipeTime = 0;
+                lastSwipeX = null;
 
                 if (isPinch) {
-                    if (now - gestureDebounceTimer > 750) {
-                        aiStatus.textContent = "CHÚM TAY: BẮT ẢNH";
+                    if (FSM.targetState === STATES.GALAXY_BURST && (now - gestureDebounceTimer > 750)) {
+                        showAiHudBadge('badge-pinch', '👌 CHÚM TAY: BẮT ẢNH');
                         triggerPhotoGrab();
                         gestureDebounceTimer = now;
                     }
                 } else if (isOpen) {
-                    if (FSM.targetState === STATES.BOOK_AJAR && (now - gestureDebounceTimer > 750)) {
-                        aiStatus.textContent = "XÒE TAY: BUNG TINH CẦU";
+                    if (FSM.targetState === STATES.BOOK_AJAR && (now - gestureDebounceTimer > 600)) {
+                        showAiHudBadge('badge-open-palm', '🖐️ XÒE TAY: BUNG / THOÁT NGÂN HÀ');
                         FSM.setTarget(STATES.GALAXY_BURST);
                         gestureDebounceTimer = now;
                     }
                 } else if (isFist) {
-                    if (FSM.targetState !== STATES.BOOK_AJAR && (now - gestureDebounceTimer > 750)) {
-                        aiStatus.textContent = "NẮM TAY: THU VỀ SÁCH";
+                    if (FSM.targetState !== STATES.BOOK_AJAR && (now - gestureDebounceTimer > 600)) {
+                        showAiHudBadge('badge-fist', '✊ NẮM TAY: THU VỀ SÁCH');
                         FSM.setTarget(STATES.BOOK_AJAR);
                         gestureDebounceTimer = now;
                     }
@@ -5213,8 +5463,6 @@
 
             const dt = Math.min(clock.getDelta(), 0.05);
             const elapsed = clock.getElapsedTime();
-
-            processHandGesturesAsync();
 
             // HAND STEERING (Từ demo4): Di chuyển tay lệch tâm để xoay mô hình theo hướng đó
             if (STATE.hand.detected && webcamRunning) {
