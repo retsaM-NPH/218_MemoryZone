@@ -1573,6 +1573,7 @@
             createAllPhotoCards();
             window.allPhotoCards = allPhotoCards;
             buildMedicalAndScienceChibiProps();
+            window.chibiProps = chibiProps;
             buildCrossStarFlares();
             buildDedicatedMiniStardustSwarm();
             setupInteractions();
@@ -1638,6 +1639,7 @@
             container.appendChild(renderer.domElement);
 
             controls = new OrbitControls(camera, renderer.domElement);
+            window.controls = controls;
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             controls.target.set(0, 0, 0);
@@ -2190,54 +2192,54 @@
 
         function createBlackGalaxyAnimeMasterTitle() {
             const cvs = document.createElement('canvas');
-            cvs.width = 1024; cvs.height = 1024;
+            cvs.width = 1024; cvs.height = 440;
             const ctx = cvs.getContext('2d');
-            ctx.clearRect(0, 0, 1024, 1024);
+            ctx.clearRect(0, 0, 1024, 440);
 
             ctx.save();
-            ctx.translate(512, 512);
+            ctx.translate(512, 220);
             ctx.rotate(-14 * Math.PI / 180);
 
-            ctx.font = '700 92px "Fredoka", sans-serif';
+            ctx.font = '700 84px "Fredoka", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
 
-            // VIỀN TRẮNG ĐẬM GẤP 3 LẦN
+            // VIỀN TRẮNG ĐẬM
             ctx.shadowColor = 'rgba(0, 242, 254, 0.8)';
-            ctx.shadowBlur = 20;
+            ctx.shadowBlur = 18;
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 24;
-            ctx.strokeText('MEMORYZONE', 0, -42);
-            ctx.font = '700 108px "Fredoka", sans-serif';
-            ctx.strokeText('2 1 8', 0, 65);
+            ctx.lineWidth = 22;
+            ctx.strokeText('MEMORYZONE', 0, -38);
+            ctx.font = '700 100px "Fredoka", sans-serif';
+            ctx.strokeText('2 1 8', 0, 56);
 
             ctx.shadowColor = 'transparent';
             ctx.strokeStyle = '#00f2fe';
             ctx.lineWidth = 4;
-            ctx.strokeText('2 1 8', 0, 65);
-            ctx.font = '700 92px "Fredoka", sans-serif';
-            ctx.strokeText('MEMORYZONE', 0, -42);
+            ctx.strokeText('2 1 8', 0, 56);
+            ctx.font = '700 84px "Fredoka", sans-serif';
+            ctx.strokeText('MEMORYZONE', 0, -38);
 
-            const blackGalaxyGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 250);
+            const blackGalaxyGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 230);
             blackGalaxyGrad.addColorStop(0.0, '#101726');
             blackGalaxyGrad.addColorStop(0.5, '#070b14');
             blackGalaxyGrad.addColorStop(1.0, '#010308');
 
             ctx.fillStyle = blackGalaxyGrad;
-            ctx.font = '700 92px "Fredoka", sans-serif';
-            ctx.fillText('MEMORYZONE', 0, -42);
+            ctx.font = '700 84px "Fredoka", sans-serif';
+            ctx.fillText('MEMORYZONE', 0, -38);
 
-            ctx.font = '700 108px "Fredoka", sans-serif';
-            ctx.fillText('2 1 8', 0, 65);
+            ctx.font = '700 100px "Fredoka", sans-serif';
+            ctx.fillText('2 1 8', 0, 56);
 
-            for (let i = 0; i < 40; i++) {
-                const gx = (Math.random() - 0.5) * 440;
-                const gy = (Math.random() - 0.5) * 220;
+            for (let i = 0; i < 35; i++) {
+                const gx = (Math.random() - 0.5) * 420;
+                const gy = (Math.random() - 0.5) * 190;
                 ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : (Math.random() > 0.5 ? '#00f2fe' : '#ff80bf');
                 ctx.beginPath();
-                ctx.arc(gx, gy, 1.5 + Math.random() * 2.5, 0, Math.PI * 2);
+                ctx.arc(gx, gy, 1.2 + Math.random() * 2.2, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -2247,7 +2249,7 @@
             tex.colorSpace = THREE.SRGBColorSpace;
             tex.needsUpdate = true;
 
-            const geo = new THREE.PlaneGeometry(4.4, 4.4);
+            const geo = new THREE.PlaneGeometry(3.40, 1.20);
             const mat = new THREE.MeshStandardMaterial({
                 map: tex,
                 transparent: true,
@@ -2399,7 +2401,7 @@
             rightCoverHinge.add(contourLineMesh);
 
             titleMesh = createBlackGalaxyAnimeMasterTitle();
-            titleMesh.position.set(W * 0.50, 0.0, T + BOOK.bevel + 0.008);
+            titleMesh.position.set(2.30, 2.25, T + BOOK.bevel + 0.005);
             rightCoverHinge.add(titleMesh);
         }
 
@@ -3368,6 +3370,7 @@
         function refreshAllCardTextures() {
             if (!allPhotoCards || allPhotoCards.length === 0 || allPhotos.length === 0) return;
             allPhotoCards.forEach((card, idx) => {
+                if (card.userData && card.userData.isCoverPhoto) return;
                 const photoItem = allPhotos[idx % allPhotos.length];
                 if (photoItem && card.userData && card.userData.photoPlane) {
                     const tex = getPhotoTexture(photoItem.url);
@@ -3378,17 +3381,21 @@
         }
 
         function updateHeroFocusedTexture() {
-            if (allPhotos.length === 0 || !allPhotoCards || allPhotoCards.length === 0) return;
-            const photoItem = allPhotos[selectedPhotoIndex % allPhotos.length];
+            if (!allPhotoCards || allPhotoCards.length === 0) return;
             const cardIdx = selectedPhotoIndex % allPhotoCards.length;
             const card = allPhotoCards[cardIdx];
+            const photoItem = (card && card.userData && card.userData.photoItem)
+                ? card.userData.photoItem
+                : (allPhotos && allPhotos.length > 0 ? allPhotos[selectedPhotoIndex % allPhotos.length] : null);
             if (photoItem && card && card.userData && card.userData.photoPlane) {
                 const tex = getPhotoTexture(photoItem.url);
                 card.userData.photoPlane.material.map = tex;
                 card.userData.photoPlane.material.needsUpdate = true;
             }
             if (choreoPill) {
-                choreoPill.textContent = `ẢNH #${(selectedPhotoIndex % allPhotos.length) + 1}/${allPhotos.length} · VUỐT HOẶC 1-2 NGÓN ĐỔI ẢNH · CHẠM NGOÀI THU VỀ`;
+                const totalCount = (allPhotos && allPhotos.length > 0) ? allPhotos.length : allPhotoCards.length;
+                const displayTitle = (photoItem && photoItem.title) ? photoItem.title : `ẢNH #${(selectedPhotoIndex % totalCount) + 1}`;
+                choreoPill.textContent = `${displayTitle.toUpperCase()} · VUỐT HOẶC 1-2 NGÓN ĐỔI ẢNH · CHẠM NGOÀI THU VỀ`;
             }
         }
 
@@ -3791,22 +3798,79 @@
             return group;
         }
 
+        function createCoverStickerCardMesh(tex, width, height, dominantCol = '#00f2fe') {
+            const group = new THREE.Group();
+
+            // 1. Mặt ảnh phẳng sticker dính sát bìa với viền pha lê trong suốt, DoubleSide 2 mặt
+            const photoGeo = new THREE.PlaneGeometry(width, height);
+            const photoMat = new THREE.MeshStandardMaterial({
+                map: tex,
+                transparent: true,
+                alphaTest: 0.01,
+                side: THREE.DoubleSide,
+                roughness: 0.15,
+                metalness: 0.08,
+                emissive: new THREE.Color(0x00f2fe),
+                emissiveIntensity: 0.18,
+                depthWrite: true
+            });
+            const photoPlane = new THREE.Mesh(photoGeo, photoMat);
+            photoPlane.position.z = 0.0;
+            group.add(photoPlane);
+            group.userData.photoPlane = photoPlane;
+
+            // 2. Viền neon phát quang tinh tế bao quanh 2 mặt trước & sau của thẻ ảnh
+            const frameLineMat = new THREE.LineBasicMaterial({ color: new THREE.Color(dominantCol), transparent: true, opacity: 0.25 });
+            const frameLine = new THREE.LineSegments(
+                new THREE.EdgesGeometry(photoGeo),
+                frameLineMat
+            );
+            frameLine.position.z = 0.001;
+            group.add(frameLine);
+            group.userData.frameLine = frameLine;
+
+            const frameLineBack = new THREE.LineSegments(
+                new THREE.EdgesGeometry(photoGeo),
+                frameLineMat
+            );
+            frameLineBack.position.z = -0.001;
+            group.add(frameLineBack);
+            group.userData.frameLineBack = frameLineBack;
+
+            // 3. Đốm sáng lung linh (ẩn khi ở trạng thái sách mở hờ)
+            const orbGeo = new THREE.SphereGeometry(0.30, 14, 14);
+            const orbMat = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(dominantCol).multiplyScalar(1.5),
+                transparent: true,
+                opacity: 0.95
+            });
+            const glowOrb = new THREE.Mesh(orbGeo, orbMat);
+            glowOrb.position.z = 0.01;
+            glowOrb.visible = false;
+            group.add(glowOrb);
+            group.userData.glowOrb = glowOrb;
+
+            return group;
+        }
+
+        const COVER_PHOTO_CONFIGS = [
+            // Bìa Trước (rightCoverHinge): 4 ảnh Magazine Layout (1 Dọc, 2 Vuông, 3 Dọc, 4 Ngang)
+            { side: 'front', x: 1.35, y: 0.45, z: BOOK.thickness + BOOK.bevel + 0.002, rotZ: -0.026, rotY: 0, w: 1.35, h: 1.88, url: 'assets/Cover/1.png', title: 'Ảnh Bìa #1' },
+            { side: 'front', x: 3.25, y: 0.45, z: BOOK.thickness + BOOK.bevel + 0.002, rotZ: 0.026, rotY: 0, w: 1.50, h: 1.42, url: 'assets/Cover/2.png', title: 'Ảnh Bìa #2' },
+            { side: 'front', x: 1.35, y: -1.75, z: BOOK.thickness + BOOK.bevel + 0.002, rotZ: 0.026, rotY: 0, w: 1.35, h: 1.88, url: 'assets/Cover/3.png', title: 'Ảnh Bìa #3' },
+            { side: 'front', x: 3.20, y: -1.75, z: BOOK.thickness + BOOK.bevel + 0.002, rotZ: -0.026, rotY: 0, w: 1.95, h: 1.11, url: 'assets/Cover/4.png', title: 'Ảnh Bìa #4' },
+
+            // Bìa Sau (leftCoverHinge): 4 ảnh Sandwich 3-Tier Layout (Top banner 5, Mid-left 7, Mid-right 6, Bottom banner 8)
+            { side: 'back', x: 2.30, y: 1.85, z: -BOOK.thickness - BOOK.bevel - 0.002, rotZ: 0.0, rotY: Math.PI, w: 2.50, h: 1.43, url: 'assets/Cover/5.png', title: 'Ảnh Bìa #5' },
+            { side: 'back', x: 1.40, y: 0.00, z: -BOOK.thickness - BOOK.bevel - 0.002, rotZ: 0.026, rotY: Math.PI, w: 1.40, h: 1.95, url: 'assets/Cover/7.png', title: 'Ảnh Bìa #7' },
+            { side: 'back', x: 3.20, y: 0.00, z: -BOOK.thickness - BOOK.bevel - 0.002, rotZ: -0.026, rotY: Math.PI, w: 1.55, h: 1.47, url: 'assets/Cover/6.png', title: 'Ảnh Bìa #6' },
+            { side: 'back', x: 2.30, y: -1.85, z: -BOOK.thickness - BOOK.bevel - 0.002, rotZ: 0.0, rotY: Math.PI, w: 2.50, h: 1.43, url: 'assets/Cover/8.png', title: 'Ảnh Bìa #8' }
+        ];
 
         function createAllPhotoCards() {
             const T = BOOK.thickness;
             const bevel = BOOK.bevel;
-
-            const coverConfigs = [
-                { side: 'front', x: 1.25, y: 2.05, z: T + bevel + 0.02, rotZ: -0.10, rotY: 0 },
-                { side: 'front', x: 3.35, y: 2.05, z: T + bevel + 0.02, rotZ: 0.12, rotY: 0 },
-                { side: 'front', x: 1.25, y: -2.05, z: T + bevel + 0.02, rotZ: 0.08, rotY: 0 },
-                { side: 'front', x: 3.35, y: -2.05, z: T + bevel + 0.02, rotZ: -0.10, rotY: 0 },
-
-                { side: 'back', x: 1.25, y: 2.05, z: -T - bevel - 0.02, rotZ: -0.12, rotY: Math.PI },
-                { side: 'back', x: 3.35, y: 2.05, z: -T - bevel - 0.02, rotZ: 0.14, rotY: Math.PI },
-                { side: 'back', x: 1.25, y: -2.05, z: -T - bevel - 0.02, rotZ: 0.10, rotY: Math.PI },
-                { side: 'back', x: 3.35, y: -2.05, z: -T - bevel - 0.02, rotZ: -0.12, rotY: Math.PI }
-            ];
+            const coverConfigs = COVER_PHOTO_CONFIGS;
 
             // Dọn dẹp thẻ ảnh và anchor cũ nếu đã tồn tại trong scene
             if (allPhotoCards && allPhotoCards.length > 0) {
@@ -3972,27 +4036,44 @@
             // 3. Khởi tạo Three.js Card Meshes với tỉ lệ khung hình chuẩn aspect ratio
             for (let i = 0; i < totalCards; i++) {
                 const layout = cardsLayout[i];
-                const photoItem = (allPhotos && allPhotos[i]) ? allPhotos[i] : {
-                    id: i,
-                    url: `assets/web_photos/photo_${String(i).padStart(3, '0')}.jpg`,
-                    title: `Kỷ niệm #${i + 1}`,
-                    color: '#00f2fe',
-                    aspect: 0.7586
-                };
+                let photoItem, cardW, cardH, cardMesh, dominantCol;
 
-                const dominantCol = photoItem.color || '#00f2fe';
-                const aspect = photoItem.aspect || (1.10 / 1.45);
-                let cardW, cardH;
-                if (aspect >= 1.0) {
-                    cardW = 1.45;
-                    cardH = 1.45 / aspect;
+                if (i < coverConfigs.length) {
+                    const cfg = coverConfigs[i];
+                    dominantCol = '#00f2fe';
+                    photoItem = {
+                        id: i,
+                        url: cfg.url,
+                        title: cfg.title || `Ảnh Bìa #${i + 1}`,
+                        color: dominantCol,
+                        aspect: cfg.w / cfg.h
+                    };
+                    cardW = cfg.w;
+                    cardH = cfg.h;
+                    const tex = getPhotoTexture(photoItem.url);
+                    cardMesh = createCoverStickerCardMesh(tex, cardW, cardH, dominantCol);
                 } else {
-                    cardH = 1.45;
-                    cardW = 1.45 * aspect;
-                }
+                    photoItem = (allPhotos && allPhotos[i]) ? allPhotos[i] : {
+                        id: i,
+                        url: `assets/web_photos/photo_${String(i).padStart(3, '0')}.jpg`,
+                        title: `Kỷ niệm #${i + 1}`,
+                        color: '#00f2fe',
+                        aspect: 0.7586
+                    };
 
-                const tex = getPhotoTexture(photoItem.url);
-                const cardMesh = createPhotoCardMesh(tex, cardW, cardH, dominantCol);
+                    dominantCol = photoItem.color || '#00f2fe';
+                    const aspect = photoItem.aspect || (1.10 / 1.45);
+                    if (aspect >= 1.0) {
+                        cardW = 1.45;
+                        cardH = 1.45 / aspect;
+                    } else {
+                        cardH = 1.45;
+                        cardW = 1.45 * aspect;
+                    }
+
+                    const tex = getPhotoTexture(photoItem.url);
+                    cardMesh = createPhotoCardMesh(tex, cardW, cardH, dominantCol);
+                }
 
                 let anchor = null;
                 if (layout.isCoverPhoto && i < coverConfigs.length) {
@@ -4002,6 +4083,11 @@
                     anchor.position.set(cfg.x, cfg.y, cfg.z);
                     anchor.rotation.set(0, cfg.rotY, cfg.rotZ);
                     hinge.add(anchor);
+
+                    // Khóa định vị tức thì thẻ ảnh vào anchor trên bìa sách từ frame đầu tiên
+                    hinge.updateMatrixWorld(true);
+                    anchor.getWorldPosition(cardMesh.position);
+                    anchor.getWorldQuaternion(cardMesh.quaternion);
                 }
 
                 // Góc xoay nhào lộn ngẫu nhiên tự do nhưng hãm tốc độ quay chậm (-0.12 đến +0.12)
@@ -4036,7 +4122,9 @@
                     rotSpeedX: rotSpeedX,
                     rotSpeedY: rotSpeedY,
                     rotSpeedZ: rotSpeedZ,
-                    currentRot: new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
+                    currentRot: (layout.isCoverPhoto && i < coverConfigs.length)
+                        ? new THREE.Euler(0, coverConfigs[i].rotY, coverConfigs[i].rotZ)
+                        : new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
                     dominantColor: dominantCol
                 });
 
@@ -4616,6 +4704,10 @@
         }
 
         function buildMedicalAndScienceChibiProps() {
+            // [TICKET 04]: Tạm thời ngắt kết nối 8 Chibi medical props khỏi hai cánh bản lề bìa sách
+            // (leftCoverHinge & rightCoverHinge) để người dùng đánh giá thẩm mỹ bố cục 8 ảnh bìa pha lê.
+            // Toàn bộ 6 hàm tạo hình 3D Chibi (createChibiMicroscope, createChibiStethoscope, v.v.)
+            // và mảng propsConfigs bên dưới được bảo lưu nguyên vẹn 100% để sẵn sàng tái gắn kết.
             const T = BOOK.thickness;
             const bevel = BOOK.bevel;
 
@@ -4631,6 +4723,8 @@
                 { create: createChibiLabCoat, side: 'back', x: 2.3, y: -2.4, z: -T - bevel - 0.02, rotY: Math.PI, rotZ: -0.8 }
             ];
 
+            // Tạm thời ngắt kết nối: Không tạo mesh và không gắn anchor vào hinges
+            /*
             propsConfigs.forEach((cfg, idx) => {
                 const mesh = cfg.create();
                 const hinge = (cfg.side === 'front') ? rightCoverHinge : leftCoverHinge;
@@ -4662,6 +4756,7 @@
                 scene.add(mesh);
                 chibiProps.push(mesh);
             });
+            */
         }
 
         let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
@@ -4698,7 +4793,7 @@
                         if (renderer?.domElement) renderer.domElement.style.cursor = 'default';
                         return;
                     }
-                    if (FSM.currentState === STATES.GALAXY_BURST || FSM.currentState === STATES.FOCUS_PHOTO) {
+                    if (FSM.currentState === STATES.GALAXY_BURST || FSM.currentState === STATES.FOCUS_PHOTO || FSM.currentState === STATES.BOOK_AJAR) {
                         mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                         raycaster.setFromCamera(mouse, camera);
@@ -4707,9 +4802,13 @@
                             let top = intersects[0].object;
                             while (top.parent && !top.userData.isPhoto) top = top.parent;
                             if (top.userData.isPhoto) {
-                                hoveredCardIndex = top.userData.index;
-                                if (renderer?.domElement) renderer.domElement.style.cursor = 'pointer';
-                                return;
+                                if (FSM.currentState === STATES.BOOK_AJAR && !top.userData.isCoverPhoto) {
+                                    // Bỏ qua các ảnh galaxy đang ở dạng hạt đốm sáng
+                                } else {
+                                    hoveredCardIndex = top.userData.index;
+                                    if (renderer?.domElement) renderer.domElement.style.cursor = 'pointer';
+                                    return;
+                                }
                             }
                         }
                     }
@@ -4805,19 +4904,23 @@
 
             raycaster.setFromCamera(mouse, camera);
 
-            if (FSM.currentState === STATES.GALAXY_BURST || FSM.currentState === STATES.FOCUS_PHOTO) {
-                const intersects = raycaster.intersectObjects(allPhotoCards, true);
+            const intersects = raycaster.intersectObjects(allPhotoCards, true);
 
-                if (intersects.length > 0) {
-                    let top = intersects[0].object;
-                    while (top.parent && !top.userData.isPhoto) top = top.parent;
-                    if (top.userData.isPhoto) {
-                        FSM.setTarget(STATES.FOCUS_PHOTO, top.userData.index);
+            if (intersects.length > 0) {
+                let top = intersects[0].object;
+                while (top.parent && !top.userData.isPhoto) top = top.parent;
+                if (top.userData.isPhoto) {
+                    if (FSM.currentState === STATES.BOOK_AJAR && !top.userData.isCoverPhoto) {
+                        FSM.setTarget(STATES.GALAXY_BURST);
                         return;
                     }
-                } else if (FSM.currentState === STATES.FOCUS_PHOTO) {
-                    FSM.setTarget(STATES.GALAXY_BURST);
+                    FSM.setTarget(STATES.FOCUS_PHOTO, top.userData.index);
+                    return;
                 }
+            }
+
+            if (FSM.currentState === STATES.FOCUS_PHOTO) {
+                FSM.setTarget(STATES.GALAXY_BURST);
             } else if (FSM.currentState === STATES.BOOK_AJAR) {
                 FSM.setTarget(STATES.GALAXY_BURST);
             }
@@ -5378,6 +5481,29 @@
                     card.position.lerp(u.targetPos, dt * 6.5);
                     card.quaternion.slerp(camera.quaternion, dt * 7.5);
                     card.scale.setScalar(THREE.MathUtils.lerp(card.scale.x, 1.35, dt * 6.0));
+                } else if (u.isCoverPhoto) {
+                    card.visible = true;
+                    if (tMorph <= 0.005) {
+                        // SÁCH KHÉP HỜ (BOOK_AJAR): Khóa cứng 100% vào anchor bìa sách, triệt tiêu hoàn toàn z-fighting và lag
+                        card.position.copy(bookWorldPos);
+                        card.quaternion.copy(bookWorldQuat);
+                        u.targetPos.copy(bookWorldPos);
+                        card.scale.setScalar(1.0);
+                        if (u.anchor) {
+                            u.currentRot.set(0, u.anchor.rotation.y, u.anchor.rotation.z);
+                        }
+                    } else {
+                        // BUNG NGÂN HÀ / CHUYỂN TIẾP: Lerp vị trí và slerp góc quay mượt mà sang tọa độ ngân hà
+                        u.targetPos.lerpVectors(bookWorldPos, galaxyWorldPos, tMorph);
+                        const posLerpRate = dt * (6.0 + (1.0 - tMorph) * 14.0);
+                        card.position.lerp(u.targetPos, posLerpRate);
+
+                        _q3.slerpQuaternions(bookWorldQuat, galaxyWorldQuat, tMorph);
+                        card.quaternion.slerp(_q3, posLerpRate);
+
+                        const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.45 : 1.0;
+                        card.scale.setScalar(THREE.MathUtils.lerp(card.scale.x, targetScale, dt * 6.0));
+                    }
                 } else {
                     card.visible = true;
                     u.targetPos.lerpVectors(bookWorldPos, galaxyWorldPos, tMorph);
@@ -5386,7 +5512,7 @@
                     _q3.slerpQuaternions(bookWorldQuat, galaxyWorldQuat, tMorph);
                     card.quaternion.slerp(_q3, dt * 6.0);
 
-                    const baseScale = u.isCoverPhoto ? 1.0 : (0.08 + tMorph * 0.92);
+                    const baseScale = 0.08 + tMorph * 0.92;
                     const sphereScale = u.sphereScale || 1.0;
                     const targetScale = (cur === STATES.FOCUS_PHOTO) ? 0.45 : (baseScale * sphereScale);
                     card.scale.setScalar(THREE.MathUtils.lerp(card.scale.x, targetScale, dt * 6.0));
