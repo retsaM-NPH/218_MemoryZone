@@ -1567,7 +1567,7 @@
         const EXTRA_GALAXY_PHOTO_COUNT = 247;
         let TOTAL_PHOTO_COUNT = 255; // 255 ảnh kỷ niệm thật (8 ảnh bìa + 247 ảnh lơ lửng)
 
-        let scene, camera, renderer, composer, controls, skydomeMesh;
+        let scene, camera, renderer, composer, bloomPass, controls, skydomeMesh;
         let albumRoot, bookAssembly, spineMesh;
         let leftCoverHinge, rightCoverHinge;
         let chibiCoverMat, titleMesh, contourLineMesh;
@@ -1908,11 +1908,11 @@
             composer = new EffectComposer(renderer);
             composer.addPass(new RenderPass(scene, camera));
 
-            const bloomPass = new UnrealBloomPass(
+            bloomPass = new UnrealBloomPass(
                 new THREE.Vector2(window.innerWidth, window.innerHeight),
-                0.85,
-                0.5,
-                0.72
+                0.80,
+                0.50,
+                0.92
             );
             composer.addPass(bloomPass);
             composer.addPass(new OutputPass());
@@ -4043,7 +4043,7 @@
 
             // 1. Backplate khung nổi 3D (Gương Bạc Lỏng - Liquid Silver Chrome PBR)
             const backplate = new THREE.Mesh(
-                new THREE.BoxGeometry(width + 0.10, height + 0.12, 0.035),
+                new THREE.BoxGeometry(width + 0.07, height + 0.084, 0.030),
                 liquidSilverChromeBackplateMat
             );
             group.add(backplate);
@@ -5027,6 +5027,7 @@
         let isTouchDragging = false;
         let lastTapTime = 0;
         let lastTapX = 0, lastTapY = 0;
+        let lastTapState = -1;
 
         function setupInteractions() {
             fsmButtons.forEach(btn => {
@@ -5730,6 +5731,11 @@
             FSM.galaxyProgressLerp = THREE.MathUtils.lerp(FSM.galaxyProgressLerp, targetGalaxy, dt * 2.8);
             FSM.bookMeshOpacityLerp = THREE.MathUtils.lerp(FSM.bookMeshOpacityLerp, targetMeshOpac, dt * 3.2);
             FSM.skydomeDimLerp = THREE.MathUtils.lerp(FSM.skydomeDimLerp, targetSkydomeDim, dt * 3.5);
+
+            if (bloomPass) {
+                const targetBloom = (cur === STATES.FOCUS_PHOTO) ? 0.28 : 0.80;
+                bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, targetBloom, dt * 3.5);
+            }
 
             // Góc mở sách: từ 30 độ (mở hờ) sang 160 độ (mở bung)
             const openRad = THREE.MathUtils.lerp(BOOK.ajarAngleRad / 2, BOOK.maxOpenRad / 2, FSM.openProgressLerp);
