@@ -1490,6 +1490,11 @@
                     <input type="range" id="dev-star-size" min="0.2" max="3.0" step="0.1" value="1.0" oninput="devUpdateStarSize(this.value)">
                     <span id="dev-val-star">1.0x</span>
                 </div>
+                <div class="dev-row">
+                    <label>Thị sai Bầu trời:</label>
+                    <input type="range" id="dev-skydome-parallax" min="0.0" max="0.5" step="0.01" value="0.20" oninput="devUpdateSkydomeParallax(this.value)">
+                    <span id="dev-val-skydome-parallax">0.20x</span>
+                </div>
             </div>
             <div class="dev-section">
                 <div class="dev-sec-title">🎨 Bảng Màu Hạt Tinh Hà</div>
@@ -1568,6 +1573,8 @@
         let TOTAL_PHOTO_COUNT = 255; // 255 ảnh kỷ niệm thật (8 ảnh bìa + 247 ảnh lơ lửng)
 
         let scene, camera, renderer, composer, bloomPass, controls, skydomeMesh;
+        let skydomeParallaxRatio = 0.20;
+        window.skydomeParallaxRatio = 0.20;
         let albumRoot, bookAssembly, spineMesh;
         let leftCoverHinge, rightCoverHinge;
         let chibiCoverMat, titleMesh, contourLineMesh;
@@ -1825,6 +1832,7 @@
             window.skydomeMesh = skydomeMesh;
             setupStudioLighting();
             buildPhysicallyAccurateBook();
+            window.albumRoot = albumRoot;
             buildOptimizedParticleSystem();
             buildProportionalStarsAndHearts();
             await initPhotoLibrary();
@@ -3925,6 +3933,13 @@
             }
         }
 
+        function devUpdateSkydomeParallax(val) {
+            skydomeParallaxRatio = parseFloat(val);
+            window.skydomeParallaxRatio = skydomeParallaxRatio;
+            const valSpan = document.getElementById('dev-val-skydome-parallax');
+            if (valSpan) valSpan.textContent = parseFloat(val).toFixed(2) + 'x';
+        }
+
         function devSaveSettings() {
             const settings = {
                 galaxyCount: document.getElementById('dev-galaxy-count').value,
@@ -3932,7 +3947,8 @@
                 starSize: document.getElementById('dev-star-size').value,
                 colCore: document.getElementById('dev-col-core').value,
                 colCyan: document.getElementById('dev-col-cyan').value,
-                colPink: document.getElementById('dev-col-pink').value
+                colPink: document.getElementById('dev-col-pink').value,
+                skydomeParallax: document.getElementById('dev-skydome-parallax') ? document.getElementById('dev-skydome-parallax').value : '0.20'
             };
             localStorage.setItem('memoryzone_dev_settings', JSON.stringify(settings));
             alert("Đã lưu cấu hình thành công!");
@@ -3940,9 +3956,30 @@
 
         function devResetSettings() {
             localStorage.removeItem('memoryzone_dev_settings');
+            skydomeParallaxRatio = 0.20;
+            window.skydomeParallaxRatio = 0.20;
+            const slider = document.getElementById('dev-skydome-parallax');
+            if (slider) slider.value = '0.20';
+            const valSpan = document.getElementById('dev-val-skydome-parallax');
+            if (valSpan) valSpan.textContent = '0.20x';
             alert("Đã khôi phục cài đặt mặc định!");
             location.reload();
         }
+
+        try {
+            const savedDevRaw = localStorage.getItem('memoryzone_dev_settings');
+            if (savedDevRaw) {
+                const savedDev = JSON.parse(savedDevRaw);
+                if (savedDev && savedDev.skydomeParallax !== undefined) {
+                    skydomeParallaxRatio = parseFloat(savedDev.skydomeParallax);
+                    window.skydomeParallaxRatio = skydomeParallaxRatio;
+                    const slider = document.getElementById('dev-skydome-parallax');
+                    if (slider) slider.value = savedDev.skydomeParallax;
+                    const valSpan = document.getElementById('dev-val-skydome-parallax');
+                    if (valSpan) valSpan.textContent = parseFloat(savedDev.skydomeParallax).toFixed(2) + 'x';
+                }
+            }
+        } catch(e) {}
 
         function handleUserMusicUpload(e) {
             const files = e.target.files;
@@ -3962,6 +3999,7 @@
         window.devUpdateGalaxyParticles = devUpdateGalaxyParticles;
         window.devUpdatePageParticles = devUpdatePageParticles;
         window.devUpdateStarSize = devUpdateStarSize;
+        window.devUpdateSkydomeParallax = devUpdateSkydomeParallax;
         window.devUpdateColor = devUpdateColor;
         window.devSaveSettings = devSaveSettings;
         window.devResetSettings = devResetSettings;
@@ -5675,9 +5713,14 @@
             albumRoot.rotation.x = THREE.MathUtils.lerp(albumRoot.rotation.x, modelRotation.x, dt * 4.0);
             albumRoot.rotation.y = THREE.MathUtils.lerp(albumRoot.rotation.y, modelRotation.y, dt * 4.0);
 
-            // Feature: 4K Stationary Chromatic Skydome - Ticket 01: Decoupled Stationary Skydome World Frame (Locked [0, 0, 0])
-            if (skydomeMesh) {
-                skydomeMesh.rotation.set(0, 0, 0);
+            // Feature: Cosmic Skydome Micro-Parallax - Ticket 05: Dynamic micro-parallax ratio (default 0.20)
+            if (skydomeMesh && albumRoot) {
+                if (typeof window.skydomeParallaxRatio === 'number' && window.skydomeParallaxRatio !== skydomeParallaxRatio) {
+                    skydomeParallaxRatio = window.skydomeParallaxRatio;
+                }
+                skydomeMesh.rotation.y = albumRoot.rotation.y * skydomeParallaxRatio;
+                skydomeMesh.rotation.x = albumRoot.rotation.x * skydomeParallaxRatio;
+                skydomeMesh.rotation.z = 0;
                 if (skydomeMesh.material) {
                     skydomeMesh.material.opacity = FSM.skydomeDimLerp;
                     skydomeMesh.userData.intensity = FSM.skydomeDimLerp;
